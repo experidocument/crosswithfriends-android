@@ -2,15 +2,34 @@ package com.crosswithfriends.app
 
 import android.content.Context
 import android.content.Intent
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
- * Manages local persistence and Google Drive/Doc export of the Crossword Learning Database.
+ * Manages local persistence and direct Google Doc sync of the Crossword Learning Database.
  */
 class JournalManager(private val context: Context) {
 
     private val storageFile = File(context.filesDir, "crossword_learning_database.json")
+    private val prefs = context.getSharedPreferences("CrosswordJournalPrefs", Context.MODE_PRIVATE)
+
+    companion object {
+        private const val KEY_WEBHOOK_URL = "google_doc_webhook_url"
+    }
+
+    fun getGoogleDocWebhookUrl(): String {
+        return prefs.getString(KEY_WEBHOOK_URL, "") ?: ""
+    }
+
+    fun setGoogleDocWebhookUrl(url: String) {
+        prefs.edit().putString(KEY_WEBHOOK_URL, url.trim()).apply()
+    }
 
     fun getAllEntries(): List<JournalEntry> {
         if (!storageFile.exists()) return emptyList()
@@ -29,7 +48,6 @@ class JournalManager(private val context: Context) {
 
     fun saveEntry(entry: JournalEntry) {
         val currentEntries = getAllEntries().toMutableList()
-        // If entry with same word already exists, replace or update it
         val existingIndex = currentEntries.indexOfFirst { it.word.equals(entry.word, ignoreCase = true) }
         if (existingIndex >= 0) {
             currentEntries[existingIndex] = entry
@@ -74,6 +92,40 @@ class JournalManager(private val context: Context) {
             sb.append("\n")
         }
         return sb.toString()
+    }
+
+    /**
+     * Sends formatted text directly to the user's Google Doc via Google Apps Script Webhook.
+     */
+    suspend fun syncDirectToGoogleDoc(text: String, webhookUrl: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val url = URL(webhookUrl)
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.doOutput = true
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+            conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+
+            val payload = JSONObject().apply {
+                put("text", text)
+                put("timestamp", System.currentTimeMillis())
+            }
+
+            OutputStreamWriter(conn.outputStream).use { writer ->
+                writer.write(payload.toString())
+                writer.flush()
+            }
+
+            val responseCode = conn.responseCode
+            if (responseCode in 200..399) {
+                Result.success(true)
+            } else {
+                Result.failure(Exception("HTTP error: $responseCode"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     /**

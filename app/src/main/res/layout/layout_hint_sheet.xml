@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="?android:attr/colorBackground"
-    android:paddingBottom="32dp">
+    android:paddingBottom="36dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -81,7 +81,7 @@
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="Search clue or word (e.g. Lanai, Klimt, Udon)..."
+                android:hint="Search clue or word (e.g. Mint julep, Lanai, Klimt)..."
                 app:endIconMode="custom"
                 app:endIconDrawable="@drawable/ic_search"
                 app:boxCornerRadiusTopStart="12dp"
@@ -94,8 +94,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:imeOptions="actionSearch"
-                    android:inputType="textCapWords"
-                    android:maxLines="1" />
+                    android:inputType="textCapSentences"
+                    android:maxLines="2" />
 
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -105,7 +105,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:hint="Crossword Clue (optional, e.g. Island west of Maui)"
+                android:hint="Crossword Clue text (optional, e.g. 5A Rodent and Ant...)"
                 app:boxCornerRadiusTopStart="12dp"
                 app:boxCornerRadiusTopEnd="12dp"
                 app:boxCornerRadiusBottomStart="12dp"
@@ -221,7 +221,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:text="LANAI"
+                        android:text="MINT JULEP"
                         android:textSize="20sp"
                         android:textStyle="bold"
                         android:textColor="?android:attr/textColorPrimary" />
@@ -277,7 +277,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginStart="8dp"
-                            android:text="☁️ Sync"
+                            android:text="☁️ Sync Doc"
                             android:textSize="13sp"
                             app:cornerRadius="10dp" />
 
@@ -328,9 +328,18 @@
                     style="?attr/materialButtonOutlinedStyle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="☁️ Sync All to Google Drive"
+                    android:text="☁️ Sync All"
                     android:textSize="11sp"
                     app:cornerRadius="8dp" />
+
+                <ImageButton
+                    android:id="@+id/btnWebhookSettings"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="4dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Doc Sync Settings"
+                    android:src="@drawable/ic_journal" />
 
             </LinearLayout>
 

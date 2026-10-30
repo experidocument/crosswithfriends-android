@@ -10,9 +10,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
-import android.widget.ImageButton
-import android.widget.TextView
+import android.widget.EditText
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
 import com.crosswithfriends.app.databinding.ItemJournalEntryBinding
 import com.crosswithfriends.app.databinding.LayoutHintSheetBinding
@@ -98,13 +98,12 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
                 currentResult = data
                 displayResult(data)
             }.onFailure {
-                Toast.makeText(requireContext(), "Could not fetch details. Tap 'Search on Google'.", Toast.LENGTH_SHORT).show()
-                // Show empty fallback card with Google Search button
+                // Friendly fallback with direct Google Search
                 currentResult = EncyclopediaResult(
                     word = query,
                     category = "💡 General Trivia",
                     summary = "",
-                    trivia = "Search results could not be retrieved automatically.",
+                    trivia = "Clue: \"$query\"\n\nTap 'Search on Google' below to view full crossword solver answers and web explanations.",
                     etymology = "",
                     example = "",
                     sourceUrl = "https://www.google.com/search?q=" + URLEncoder.encode(query, "UTF-8")
@@ -134,7 +133,6 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
             binding.tvResultExample.visibility = View.GONE
         }
 
-        // Auto-select category chip
         when {
             data.category.contains("Geography") -> binding.chipGroupCategory.check(R.id.chipGeo)
             data.category.contains("Arts") -> binding.chipGroupCategory.check(R.id.chipArts)
@@ -178,19 +176,68 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
                 example = data.example,
                 sourceUrl = data.sourceUrl
             )
-            journalManager.shareToGoogleDriveOrDocs(entry.toGoogleDocSnippet(), "Crossword Clue: ${entry.word}")
+
+            syncTextToGoogleDoc(entry.toGoogleDocSnippet(), "Crossword: ${entry.word}")
         }
 
         binding.btnGoogleSearch.setOnClickListener {
             val query = currentResult?.word ?: binding.etQuery.text?.toString() ?: ""
-            val searchUrl = "https://www.google.com/search?q=" + URLEncoder.encode("meaning of $query crossword", "UTF-8")
+            val searchUrl = "https://www.google.com/search?q=" + URLEncoder.encode("$query crossword", "UTF-8")
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl)))
         }
 
         binding.btnExportAllToDrive.setOnClickListener {
             val fullSnippet = journalManager.exportFullJournalForGoogleDocs()
-            journalManager.shareToGoogleDriveOrDocs(fullSnippet, "My Crossword Learning Database")
+            syncTextToGoogleDoc(fullSnippet, "My Crossword Learning Database")
         }
+
+        binding.btnWebhookSettings.setOnClickListener {
+            showWebhookSettingsDialog()
+        }
+    }
+
+    private fun syncTextToGoogleDoc(content: String, title: String) {
+        val webhookUrl = journalManager.getGoogleDocWebhookUrl()
+        if (webhookUrl.isNotBlank()) {
+            Toast.makeText(requireContext(), "Syncing directly to your Google Doc... ⏳", Toast.LENGTH_SHORT).show()
+            lifecycleScope.launch {
+                val syncResult = journalManager.syncDirectToGoogleDoc(content, webhookUrl)
+                syncResult.onSuccess {
+                    Toast.makeText(requireContext(), "Synced directly to Google Doc! 📄✅", Toast.LENGTH_LONG).show()
+                }.onFailure {
+                    Toast.makeText(requireContext(), "Webhook failed. Opening Drive Share Sheet...", Toast.LENGTH_SHORT).show()
+                    journalManager.shareToGoogleDriveOrDocs(content, title)
+                }
+            }
+        } else {
+            // First time: prompt user to configure direct webhook, or use share sheet
+            AlertDialog.Builder(requireContext())
+                .setTitle("Google Doc Direct Sync")
+                .setMessage("To append entries directly into your Google Doc, set up a simple Google Apps Script Webhook URL. Would you like to enter your Webhook URL now, or share via standard Google Drive?")
+                .setPositiveButton("Enter Webhook") { _, _ -> showWebhookSettingsDialog() }
+                .setNegativeButton("Use Share Sheet") { _, _ -> journalManager.shareToGoogleDriveOrDocs(content, title) }
+                .show()
+        }
+    }
+
+    private fun showWebhookSettingsDialog() {
+        val input = EditText(requireContext()).apply {
+            hint = "https://script.google.com/macros/s/.../exec"
+            setText(journalManager.getGoogleDocWebhookUrl())
+            setPadding(40, 30, 40, 30)
+        }
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("Google Doc Webhook URL")
+            .setMessage("Paste your Google Apps Script Web App URL below to sync entries directly to your document in real time.")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                val newUrl = input.text.toString().trim()
+                journalManager.setGoogleDocWebhookUrl(newUrl)
+                Toast.makeText(requireContext(), "Webhook URL saved!", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun getSelectedCategory(defaultCat: String): String {
@@ -219,7 +266,7 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
                 val itemBinding = ItemJournalEntryBinding.inflate(inflater, binding.containerJournalEntries, false)
                 itemBinding.tvWord.text = entry.word.uppercase()
                 itemBinding.tvCategory.text = entry.category
-                
+
                 if (entry.clue.isNotBlank()) {
                     itemBinding.tvClue.visibility = View.VISIBLE
                     itemBinding.tvClue.text = "Clue: ${entry.clue}"
@@ -247,7 +294,7 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
                     val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     val clip = ClipData.newPlainText("Crossword Entry", entry.toGoogleDocSnippet())
                     clipboard.setPrimaryClip(clip)
-                    Toast.makeText(requireContext(), "Copied to clipboard in Google Doc format!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), "Copied formatted entry to clipboard!", Toast.LENGTH_SHORT).show()
                 }
 
                 itemBinding.btnDeleteEntry.setOnClickListener {

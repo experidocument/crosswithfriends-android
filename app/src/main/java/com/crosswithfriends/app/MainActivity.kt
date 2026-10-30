@@ -10,7 +10,9 @@ import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
+import android.os.Message
 import android.view.View
+import android.view.animation.DecelerateInterpolator
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.URLUtil
@@ -47,6 +49,16 @@ class MainActivity : AppCompatActivity() {
             "downforacross.com",
             "www.downforacross.com"
         )
+
+        // Domains required for seamless in-app Google Sign-In and OAuth
+        private val AUTH_HOSTS = listOf(
+            "accounts.google.com",
+            "accounts.youtube.com",
+            "apis.google.com",
+            "ssl.gstatic.com",
+            "appleid.apple.com",
+            "github.com"
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,7 +66,6 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Enable Chrome Remote WebContents Debugging for inspecting via chrome://inspect
         WebView.setWebContentsDebuggingEnabled(true)
 
         setupFileChooser()
@@ -75,10 +86,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleIntentUrl(incomingIntent: Intent?) {
         val appLinkData: Uri? = incomingIntent?.data
-        if (appLinkData != null && isAllowedHost(appLinkData.host)) {
+        if (appLinkData != null && (isAllowedHost(appLinkData.host) || isAuthHost(appLinkData.host))) {
             binding.webView.loadUrl(appLinkData.toString())
         } else {
-            // Feature: Resume Last Game Session if available
             val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val savedUrl = prefs.getString(KEY_LAST_URL, null)
             if (!savedUrl.isNullOrEmpty() && isAllowedHost(Uri.parse(savedUrl).host)) {
@@ -92,6 +102,11 @@ class MainActivity : AppCompatActivity() {
     private fun isAllowedHost(host: String?): Boolean {
         if (host == null) return false
         return ALLOWED_HOSTS.any { allowed -> host.equals(allowed, ignoreCase = true) || host.endsWith(".$allowed") }
+    }
+
+    private fun isAuthHost(host: String?): Boolean {
+        if (host == null) return false
+        return AUTH_HOSTS.any { auth -> host.equals(auth, ignoreCase = true) || host.endsWith(".$auth") }
     }
 
     private fun setupFab() {
@@ -130,43 +145,41 @@ class MainActivity : AppCompatActivity() {
         val webView = binding.webView
         val settings = webView.settings
 
-        // Enable JavaScript and HTML5 local storage (essential for game state & Socket.IO)
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.databaseEnabled = true
         settings.cacheMode = WebSettings.LOAD_DEFAULT
 
-        // Smooth Touch & Responsive viewport settings
+        // Enable popup windows & multi-window support for Google Sign-In
+        settings.setSupportMultipleWindows(true)
+        settings.javaScriptCanOpenWindowsAutomatically = true
+
+        // Viewport and smooth touch settings
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
         settings.setSupportZoom(true)
         settings.builtInZoomControls = true
-        settings.displayZoomControls = false // Hide +/- overlay buttons
+        settings.displayZoomControls = false
 
-        // Media and audio (for puzzle victory sounds/chimes)
         settings.mediaPlaybackRequiresUserGesture = false
-
-        // Security settings
         settings.allowFileAccess = false
         settings.allowContentAccess = true
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
 
-        // Modify User-Agent: strip WebView tags (; wv) so Google OAuth and responsive layouts work seamlessly
+        // Modern Mobile Chrome User-Agent (strips WebView tags to avoid OAuth rejection)
         val defaultUserAgent = settings.userAgentString
         val sanitizedUserAgent = defaultUserAgent
             .replace("; wv", "")
             .replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
         settings.userAgentString = sanitizedUserAgent
 
-        // Enable Cookies (including 3rd party for auth sessions)
+        // Enable third party cookies for cross-origin JWT authentication
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
         cookieManager.setAcceptThirdPartyCookies(webView, true)
 
-        // JavaScript interface bridge
         webView.addJavascriptInterface(WebAppInterface(this), "AndroidApp")
 
-        // Download listener for puzzle export (.puz, .cpf)
         webView.setDownloadListener(DownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
             try {
                 val request = DownloadManager.Request(Uri.parse(url)).apply {
@@ -186,7 +199,6 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        // WebChromeClient for loading progress, file chooser, and title
         webView.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
                 binding.progressBar.progress = newProgress
@@ -196,6 +208,19 @@ class MainActivity : AppCompatActivity() {
                     binding.progressBar.visibility = View.GONE
                     binding.initialSpinner.visibility = View.GONE
                 }
+            }
+
+            // Route OAuth popups directly inside this WebView so cookies are shared
+            override fun onCreateWindow(
+                view: WebView?,
+                isDialog: Boolean,
+                isUserGesture: Boolean,
+                resultMsg: Message?
+            ): Boolean {
+                val transport = resultMsg?.obj as? WebView.WebViewTransport
+                transport?.webView = view
+                resultMsg?.sendToTarget()
+                return true
             }
 
             override fun onShowFileChooser(
@@ -221,23 +246,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // WebViewClient to intercept URLs, handle errors, and manage internal vs external routing
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url ?: return false
                 val host = url.host
 
-                // If internal URL, load within the WebView
-                if (isAllowedHost(host)) {
+                // If internal URL OR an OAuth sign-in domain, keep it inside the WebView!
+                if (isAllowedHost(host) || isAuthHost(host)) {
                     return false
                 }
 
-                // If authentication flow (e.g., Google OAuth) or external link, open in Chrome Custom Tab
+                // External websites (e.g. donations, external links) open in Chrome Custom Tab
                 if (url.scheme == "https" || url.scheme == "http") {
                     try {
-                        val customTabsIntent = CustomTabsIntent.Builder()
-                            .setShowTitle(true)
-                            .build()
+                        val customTabsIntent = CustomTabsIntent.Builder().setShowTitle(true).build()
                         customTabsIntent.launchUrl(this@MainActivity, url)
                         return true
                     } catch (e: Exception) {
@@ -246,10 +268,8 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                // Custom schemes (mailto, tel, intent, etc.)
                 try {
-                    val intent = Intent(Intent.ACTION_VIEW, url)
-                    startActivity(intent)
+                    startActivity(Intent(Intent.ACTION_VIEW, url))
                     return true
                 } catch (e: Exception) {
                     return true
@@ -259,6 +279,13 @@ class MainActivity : AppCompatActivity() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 binding.errorView.visibility = View.GONE
+
+                // Smooth Parallax Transition: start slight slide and fade
+                binding.webView.animate()
+                    .alpha(0.35f)
+                    .translationY(16f)
+                    .setDuration(120)
+                    .start()
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -266,13 +293,24 @@ class MainActivity : AppCompatActivity() {
                 binding.swipeRefreshLayout.isRefreshing = false
                 binding.initialSpinner.visibility = View.GONE
 
-                // Save active game room URL for session resumption
+                // Flush auth cookies to disk
+                CookieManager.getInstance().flush()
+
+                // Save game room URL for session recovery
                 if (url != null && isAllowedHost(Uri.parse(url).host)) {
                     val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                     prefs.edit().putString(KEY_LAST_URL, url).apply()
                 }
 
-                // Feature A: Inject minimal CSS & smooth fade-in to feel like a native app
+                // Smooth Parallax Transition: ease in
+                binding.webView.animate()
+                    .alpha(1.0f)
+                    .translationY(0f)
+                    .setDuration(220)
+                    .setInterpolator(DecelerateInterpolator())
+                    .start()
+
+                // Inject enhanced fonts, clue expansion, and minimalist UX styling
                 injectMinimalistStyling(view)
             }
 
@@ -291,39 +329,62 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Injects CSS and JavaScript to remove website headers/footers, apply edge-to-edge
-     * padding, and render smooth transitions for a native app feel.
+     * Injects CSS & JS to fix clue overflow (Issue 6), apply modern fonts (Issue 4),
+     * and smooth parallax transitions (Issue 3).
      */
     private fun injectMinimalistStyling(view: WebView?) {
         val js = """
             (function() {
-                var existingStyle = document.getElementById('zen-app-styling');
-                if (existingStyle) return;
+                var styleId = 'zen-app-styling-v2';
+                var existing = document.getElementById(styleId);
+                if (existing) existing.remove();
 
                 var style = document.createElement('style');
-                style.id = 'zen-app-styling';
+                style.id = styleId;
                 style.innerHTML = `
-                    /* Smooth font rendering and remove unwanted scroll bounce */
+                    /* Modern System Typography */
+                    html, body, * {
+                        font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+                    }
+
                     html, body {
                         margin: 0 !important;
                         padding: 0 !important;
-                        -webkit-user-select: none;
-                        user-select: none;
-                        -webkit-tap-highlight-color: transparent;
-                        overscroll-behavior-y: none;
+                        -webkit-tap-highlight-color: transparent !important;
+                        overscroll-behavior-y: none !important;
                     }
 
-                    /* Fade-in animation when rooms load */
-                    body {
-                        animation: zenFadeIn 0.25s ease-in-out;
+                    /* Parallax Transition for dynamic room loads */
+                    .game--container, .game, main, #root {
+                        animation: zenParallax 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
                     }
-                    @keyframes zenFadeIn {
-                        from { opacity: 0.2; }
-                        to { opacity: 1; }
+                    @keyframes zenParallax {
+                        0% { opacity: 0.3; transform: translateY(14px); }
+                        100% { opacity: 1; transform: translateY(0); }
                     }
 
-                    /* Ensure crossword board container utilizes full mobile width */
-                    .game--container, .game, .board-container, .cw-board {
+                    /* Issue 6 Fix: Expand and enable scroll for the Clue Bar */
+                    .clue-bar, [class*="clueBar"], [class*="clue-bar"], [class*="ClueBar"], [class*="current-clue"] {
+                        min-height: 52px !important;
+                        max-height: 110px !important;
+                        height: auto !important;
+                        overflow-y: auto !important;
+                        -webkit-overflow-scrolling: touch !important;
+                        padding: 6px 10px !important;
+                        display: flex !important;
+                        align-items: center !important;
+                    }
+
+                    .clue-bar *, [class*="clueBar"] *, [class*="clue-bar"] *, [class*="clue-text"] {
+                        white-space: normal !important;
+                        text-overflow: unset !important;
+                        overflow: visible !important;
+                        line-height: 1.35 !important;
+                        font-size: 14.5px !important;
+                    }
+
+                    /* Crossword board width optimization */
+                    .board-container, .cw-board {
                         padding: 2px !important;
                         margin: 0 auto !important;
                         max-width: 100vw !important;
@@ -343,7 +404,6 @@ class MainActivity : AppCompatActivity() {
             R.color.primary_dark
         )
 
-        // Only allow swipe-to-refresh if the user is at the top of the webpage
         binding.swipeRefreshLayout.setOnChildScrollUpCallback { _, _ ->
             binding.webView.scrollY > 0
         }
@@ -358,11 +418,28 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Issue 2 Fix: In React SPAs, if the user is in a room or game URL,
+     * back should navigate out of the game room or back in web history,
+     * instead of immediately prompting to exit!
+     */
     private fun setupBackNavigation() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                val currentUrl = binding.webView.url ?: ""
+                val isAtRoot = currentUrl.isEmpty() ||
+                               currentUrl == BASE_URL ||
+                               currentUrl == "https://crosswithfriends.com/" ||
+                               currentUrl == "https://www.crosswithfriends.com"
+
                 if (binding.webView.canGoBack()) {
                     binding.webView.goBack()
+                } else if (!isAtRoot) {
+                    // Navigate back to the main puzzles list / homepage
+                    binding.webView.evaluateJavascript(
+                        "if (window.history.length > 1) { window.history.back(); } else { window.location.href = '/'; }",
+                        null
+                    )
                 } else {
                     if (System.currentTimeMillis() - backPressedTime < 2000) {
                         finish()
