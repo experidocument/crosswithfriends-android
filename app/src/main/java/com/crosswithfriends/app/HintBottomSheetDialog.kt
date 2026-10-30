@@ -14,9 +14,11 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
+import com.crosswithfriends.app.databinding.ItemClueSearchResultBinding
 import com.crosswithfriends.app.databinding.ItemJournalEntryBinding
 import com.crosswithfriends.app.databinding.LayoutHintSheetBinding
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
 
@@ -26,7 +28,7 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
     private val binding get() = _binding!!
 
     private lateinit var journalManager: JournalManager
-    private var currentResult: EncyclopediaResult? = null
+    private var currentWordResult: EncyclopediaResult? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -42,23 +44,31 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
         journalManager = JournalManager(requireContext())
 
         setupTabs()
-        setupSearch()
-        setupActions()
+        setupWordSearch()
+        setupClueSearch()
+        setupJournalActions()
     }
 
     private fun setupTabs() {
         binding.btnCloseSheet.setOnClickListener { dismiss() }
 
-        binding.toggleTabs.check(R.id.btnTabLookup)
+        binding.toggleTabs.check(R.id.btnTabWord)
         binding.toggleTabs.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (isChecked) {
                 when (checkedId) {
-                    R.id.btnTabLookup -> {
-                        binding.viewLookup.visibility = View.VISIBLE
+                    R.id.btnTabWord -> {
+                        binding.viewWord.visibility = View.VISIBLE
+                        binding.viewClue.visibility = View.GONE
+                        binding.viewJournal.visibility = View.GONE
+                    }
+                    R.id.btnTabClue -> {
+                        binding.viewWord.visibility = View.GONE
+                        binding.viewClue.visibility = View.VISIBLE
                         binding.viewJournal.visibility = View.GONE
                     }
                     R.id.btnTabJournal -> {
-                        binding.viewLookup.visibility = View.GONE
+                        binding.viewWord.visibility = View.GONE
+                        binding.viewClue.visibility = View.GONE
                         binding.viewJournal.visibility = View.VISIBLE
                         loadSavedJournal()
                     }
@@ -67,53 +77,98 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
         }
     }
 
-    private fun setupSearch() {
-        binding.etQuery.setOnEditorActionListener { _, actionId, _ ->
+    // ==========================================
+    // 1. WORD OR TERM SECTION
+    // ==========================================
+    private fun setupWordSearch() {
+        binding.etWordQuery.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                performLookup()
+                performWordLookup()
                 true
             } else false
         }
 
-        binding.tilQuery.setEndIconOnClickListener {
-            performLookup()
+        binding.tilWordQuery.setEndIconOnClickListener {
+            performWordLookup()
+        }
+
+        binding.btnSaveToJournal.setOnClickListener {
+            val data = currentWordResult ?: return@setOnClickListener
+            val selectedCategory = getSelectedCategory(data.category)
+            val userClue = binding.etWordClue.text?.toString()?.trim() ?: ""
+
+            val entry = JournalEntry(
+                word = data.word,
+                category = selectedCategory,
+                clue = userClue,
+                trivia = data.trivia,
+                etymology = data.etymology,
+                example = data.example,
+                sourceUrl = data.sourceUrl
+            )
+
+            journalManager.saveEntry(entry)
+            Toast.makeText(requireContext(), "Saved '${entry.word}' to Journal! 📖", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnSyncDriveSingle.setOnClickListener {
+            val data = currentWordResult ?: return@setOnClickListener
+            val selectedCategory = getSelectedCategory(data.category)
+            val userClue = binding.etWordClue.text?.toString()?.trim() ?: ""
+
+            val entry = JournalEntry(
+                word = data.word,
+                category = selectedCategory,
+                clue = userClue,
+                trivia = data.trivia,
+                etymology = data.etymology,
+                example = data.example,
+                sourceUrl = data.sourceUrl
+            )
+
+            syncTextToGoogleDoc(entry.toGoogleDocSnippet(), "Crossword: ${entry.word}")
+        }
+
+        binding.btnGoogleSearchWord.setOnClickListener {
+            val query = currentWordResult?.word ?: binding.etWordQuery.text?.toString() ?: ""
+            val searchUrl = "https://www.google.com/search?q=" + URLEncoder.encode("$query crossword", "UTF-8")
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl)))
         }
     }
 
-    private fun performLookup() {
-        val query = binding.etQuery.text?.toString()?.trim() ?: ""
+    private fun performWordLookup() {
+        val query = binding.etWordQuery.text?.toString()?.trim() ?: ""
         if (query.isEmpty()) {
-            Toast.makeText(requireContext(), "Please enter a word or clue to search", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), "Please enter a word or term to search", Toast.LENGTH_SHORT).show()
             return
         }
 
-        binding.progressLookup.visibility = View.VISIBLE
+        binding.progressWord.visibility = View.VISIBLE
         binding.cardResult.visibility = View.GONE
 
         lifecycleScope.launch {
             val result = EncyclopediaService.lookup(query)
-            binding.progressLookup.visibility = View.GONE
+            binding.progressWord.visibility = View.GONE
 
             result.onSuccess { data ->
-                currentResult = data
-                displayResult(data)
+                currentWordResult = data
+                displayWordResult(data)
             }.onFailure {
-                // Friendly fallback with direct Google Search
-                currentResult = EncyclopediaResult(
+                currentWordResult = EncyclopediaResult(
                     word = query,
                     category = "💡 General Trivia",
                     summary = "",
-                    trivia = "Clue: \"$query\"\n\nTap 'Search on Google' below to view full crossword solver answers and web explanations.",
+                    trivia = "No exact single-page article found for \"$query\". Tap 'Search on Google' below to view full solutions and web explanations.",
                     etymology = "",
                     example = "",
                     sourceUrl = "https://www.google.com/search?q=" + URLEncoder.encode(query, "UTF-8")
                 )
-                displayResult(currentResult!!)
+                displayWordResult(currentWordResult!!)
             }
         }
     }
 
-    private fun displayResult(data: EncyclopediaResult) {
+    private fun displayWordResult(data: EncyclopediaResult) {
         binding.cardResult.visibility = View.VISIBLE
         binding.tvResultWord.text = data.word.uppercase()
         binding.tvResultCategory.text = data.category
@@ -142,50 +197,86 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
         }
     }
 
-    private fun setupActions() {
-        binding.btnSaveToJournal.setOnClickListener {
-            val data = currentResult ?: return@setOnClickListener
-            val selectedCategory = getSelectedCategory(data.category)
-            val userClue = binding.etClue.text?.toString()?.trim() ?: ""
-
-            val entry = JournalEntry(
-                word = data.word,
-                category = selectedCategory,
-                clue = userClue,
-                trivia = data.trivia,
-                etymology = data.etymology,
-                example = data.example,
-                sourceUrl = data.sourceUrl
-            )
-
-            journalManager.saveEntry(entry)
-            Toast.makeText(requireContext(), "Saved '${entry.word}' to Journal! 📖", Toast.LENGTH_SHORT).show()
+    // ==========================================
+    // 2. CROSSWORD CLUE SECTION
+    // ==========================================
+    private fun setupClueSearch() {
+        binding.etClueInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                performClueSearch()
+                true
+            } else false
         }
 
-        binding.btnSyncDriveSingle.setOnClickListener {
-            val data = currentResult ?: return@setOnClickListener
-            val selectedCategory = getSelectedCategory(data.category)
-            val userClue = binding.etClue.text?.toString()?.trim() ?: ""
-
-            val entry = JournalEntry(
-                word = data.word,
-                category = selectedCategory,
-                clue = userClue,
-                trivia = data.trivia,
-                etymology = data.etymology,
-                example = data.example,
-                sourceUrl = data.sourceUrl
-            )
-
-            syncTextToGoogleDoc(entry.toGoogleDocSnippet(), "Crossword: ${entry.word}")
+        binding.tilClueQuery.setEndIconOnClickListener {
+            performClueSearch()
         }
 
-        binding.btnGoogleSearch.setOnClickListener {
-            val query = currentResult?.word ?: binding.etQuery.text?.toString() ?: ""
-            val searchUrl = "https://www.google.com/search?q=" + URLEncoder.encode("$query crossword", "UTF-8")
+        binding.btnOpenGoogleClue.setOnClickListener {
+            val clueText = binding.etClueInput.text?.toString()?.trim() ?: ""
+            val searchUrl = "https://www.google.com/search?q=" + URLEncoder.encode("$clueText crossword clue", "UTF-8")
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl)))
         }
+    }
 
+    private fun performClueSearch() {
+        val clue = binding.etClueInput.text?.toString()?.trim() ?: ""
+        if (clue.isEmpty()) {
+            Toast.makeText(requireContext(), "Please enter the clue text to search", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        binding.progressClue.visibility = View.VISIBLE
+        binding.containerClueResults.removeAllViews()
+        binding.btnOpenGoogleClue.visibility = View.GONE
+
+        lifecycleScope.launch {
+            val result = EncyclopediaService.searchClueWeb(clue)
+            binding.progressClue.visibility = View.GONE
+
+            result.onSuccess { resultsList ->
+                displayClueResults(resultsList)
+
+                // Flash notification to prompt user to use the Word section to save
+                view?.let { root ->
+                    Snackbar.make(
+                        root,
+                        "Use the Word section to search and save this term for later",
+                        Snackbar.LENGTH_LONG
+                    ).setAction("Go to Word") {
+                        binding.toggleTabs.check(R.id.btnTabWord)
+                    }.show()
+                }
+            }.onFailure {
+                Toast.makeText(requireContext(), "Could not retrieve web search results.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun displayClueResults(results: List<ClueSearchResult>) {
+        binding.containerClueResults.removeAllViews()
+        binding.btnOpenGoogleClue.visibility = View.VISIBLE
+
+        val inflater = LayoutInflater.from(requireContext())
+        results.forEach { item ->
+            val itemBinding = ItemClueSearchResultBinding.inflate(inflater, binding.containerClueResults, false)
+            itemBinding.tvClueResultTitle.text = item.title
+            itemBinding.tvClueResultSnippet.text = item.snippet
+
+            itemBinding.root.setOnClickListener {
+                if (item.sourceUrl.isNotBlank()) {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(item.sourceUrl)))
+                }
+            }
+
+            binding.containerClueResults.addView(itemBinding.root)
+        }
+    }
+
+    // ==========================================
+    // 3. JOURNAL & DIRECT DOC SYNC SECTION
+    // ==========================================
+    private fun setupJournalActions() {
         binding.btnExportAllToDrive.setOnClickListener {
             val fullSnippet = journalManager.exportFullJournalForGoogleDocs()
             syncTextToGoogleDoc(fullSnippet, "My Crossword Learning Database")
@@ -210,7 +301,6 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
                 }
             }
         } else {
-            // First time: prompt user to configure direct webhook, or use share sheet
             AlertDialog.Builder(requireContext())
                 .setTitle("Google Doc Direct Sync")
                 .setMessage("To append entries directly into your Google Doc, set up a simple Google Apps Script Webhook URL. Would you like to enter your Webhook URL now, or share via standard Google Drive?")

@@ -7,6 +7,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.util.regex.Pattern
 
 data class EncyclopediaResult(
     val word: String,
@@ -18,23 +19,29 @@ data class EncyclopediaResult(
     val sourceUrl: String
 )
 
+data class ClueSearchResult(
+    val title: String,
+    val snippet: String,
+    val sourceUrl: String
+)
+
 object EncyclopediaService {
 
+    // ==========================================
+    // OPTION 1: WORD / TERM (ENCYCLOPEDIA STYLE)
+    // ==========================================
     suspend fun lookup(query: String): Result<EncyclopediaResult> = withContext(Dispatchers.IO) {
         val rawTrimmed = query.trim()
         if (rawTrimmed.isEmpty()) {
             return@withContext Result.failure(IllegalArgumentException("Query cannot be empty"))
         }
 
-        // Clean query: remove leading/trailing clue numbers like "30A", "5 Across", "(9)", "(39 Across)"
         val cleanedQuery = cleanClueQuery(rawTrimmed)
 
         try {
-            // Tier 1: Try direct title lookup with underscores (e.g., "Mint julep" -> "Mint_julep")
             val directTitle = cleanedQuery.replace(" ", "_")
             var wikiJson = fetchWikiSummary(directTitle)
 
-            // Tier 2: If direct lookup failed (common for clues or sentences), use Wikipedia Search API
             if (wikiJson == null) {
                 val searchTitle = searchWikiTitle(cleanedQuery)
                 if (searchTitle != null) {
@@ -56,7 +63,6 @@ object EncyclopediaService {
                     ?.optString("page", sourceUrl) ?: sourceUrl
             }
 
-            // Tier 3: Also query Dictionary API for definition, etymology, and example sentences
             val dictQuery = if (cleanedQuery.contains(" ")) cleanedQuery.split(" ").first() else cleanedQuery
             val dictJson = fetchDictionary(dictQuery)
 
@@ -79,11 +85,10 @@ object EncyclopediaService {
                 }
             }
 
-            // Final fallback synthesis
             val finalTrivia = when {
                 triviaText.isNotBlank() -> triviaText
                 definitionText.isNotBlank() -> definitionText
-                else -> "Clue / Search: \"$rawTrimmed\"\n\nNo exact single-page article found. Tap 'Search on Google' below to view full clue solver and web results."
+                else -> "No immediate encyclopedia summary found for '$rawTrimmed'. Tap 'Search on Google' for full web results."
             }
 
             val finalCategory = detectCategory(wordTitle, description, finalTrivia)
@@ -104,15 +109,122 @@ object EncyclopediaService {
         }
     }
 
-    /**
-     * Cleans up typical crossword prefixes and suffixes (e.g., "5A Rodent...", "(9)")
-     */
+    // ==========================================
+    // OPTION 2: CLUE SEARCH (TOP 4-5 WEB RESULTS)
+    // ==========================================
+    suspend fun searchClueWeb(clue: String): Result<List<ClueSearchResult>> = withContext(Dispatchers.IO) {
+        val trimmed = clue.trim()
+        if (trimmed.isEmpty()) {
+            return@withContext Result.failure(IllegalArgumentException("Clue cannot be empty"))
+        }
+
+        val searchTerm = "$trimmed crossword clue"
+        val results = mutableListOf<ClueSearchResult>()
+
+        try {
+            // Strategy 1: Fetch DuckDuckGo HTML search results
+            val encodedQuery = URLEncoder.encode(searchTerm, "UTF-8")
+            val urlString = "https://html.duckduckgo.com/html/?q=$encodedQuery"
+            val html = fetchString(urlString)
+
+            if (!html.isNullOrBlank()) {
+                val snippetPattern = Pattern.compile("<a[^>]+class=[\"']result__snippet[\"'][^>]*>(.*?)</a>", Pattern.DOTALL)
+                val titlePattern = Pattern.compile("<h2[^>]+class=[\"']result__title[\"'][^>]*>.*?<a[^>]+href=[\"'](.*?)[\"'][^>]*>(.*?)</a>", Pattern.DOTALL)
+
+                val snippetMatcher = snippetPattern.matcher(html)
+                val titleMatcher = titlePattern.matcher(html)
+
+                while (titleMatcher.find() && snippetMatcher.find() && results.size < 5) {
+                    val rawUrl = titleMatcher.group(1).orEmpty()
+                    val rawTitle = titleMatcher.group(2).orEmpty()
+                    val rawSnippet = snippetMatcher.group(1).orEmpty()
+
+                    val cleanTitle = cleanHtml(rawTitle)
+                    val cleanSnippet = cleanHtml(rawSnippet)
+                    val cleanUrl = decodeDuckDuckGoUrl(rawUrl)
+
+                    if (cleanSnippet.isNotBlank() && cleanTitle.isNotBlank()) {
+                        results.add(ClueSearchResult(cleanTitle, cleanSnippet, cleanUrl))
+                    }
+                }
+            }
+
+            // Strategy 2: If HTML parser yielded fewer than 3 results, supplement with Wikipedia Search
+            if (results.size < 3) {
+                val wikiSearchUrl = "https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=$encodedQuery&utf8=&format=json&srlimit=4"
+                val wikiJson = fetchJson(wikiSearchUrl)
+                val searchArr = wikiJson?.optJSONObject("query")?.optJSONArray("search")
+                if (searchArr != null) {
+                    for (i in 0 until searchArr.length()) {
+                        if (results.size >= 5) break
+                        val item = searchArr.getJSONObject(i)
+                        val title = item.optString("title", "")
+                        val snippet = cleanHtml(item.optString("snippet", ""))
+                        val pageUrl = "https://en.wikipedia.org/wiki/" + URLEncoder.encode(title.replace(" ", "_"), "UTF-8")
+                        if (title.isNotBlank()) {
+                            results.add(ClueSearchResult(title, snippet, pageUrl))
+                        }
+                    }
+                }
+            }
+
+            // Fallback: If absolutely no results could be parsed, provide a Google direct solver entry
+            if (results.isEmpty()) {
+                results.add(
+                    ClueSearchResult(
+                        title = "Google Crossword Solver: $trimmed",
+                        snippet = "Search web and crossword solvers for potential solutions to: \"$trimmed\".",
+                        sourceUrl = "https://www.google.com/search?q=$encodedQuery"
+                    )
+                )
+            }
+
+            Result.success(results)
+        } catch (e: Exception) {
+            // Even on network error, return direct Google link so user is never blocked
+            val fallback = listOf(
+                ClueSearchResult(
+                    title = "Google Search: $trimmed",
+                    snippet = "Tap below to view full clue solver answers and letter combinations on Google.",
+                    sourceUrl = "https://www.google.com/search?q=" + URLEncoder.encode(searchTerm, "UTF-8")
+                )
+            )
+            Result.success(fallback)
+        }
+    }
+
+    private fun cleanHtml(html: String): String {
+        return html
+            .replace(Regex("<[^>]+>"), "")
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace("&nbsp;", " ")
+            .trim()
+    }
+
+    private fun decodeDuckDuckGoUrl(rawUrl: String): String {
+        return try {
+            if (rawUrl.contains("uddg=")) {
+                val parts = rawUrl.split("uddg=")
+                if (parts.size > 1) {
+                    val encoded = parts[1].split("&")[0]
+                    java.net.URLDecoder.decode(encoded, "UTF-8")
+                } else rawUrl
+            } else if (rawUrl.startsWith("//")) {
+                "https:$rawUrl"
+            } else rawUrl
+        } catch (e: Exception) {
+            rawUrl
+        }
+    }
+
     private fun cleanClueQuery(query: String): String {
         var q = query
-        // Remove leading clue number like "5A ", "30 Across ", "12D "
         q = q.replace(Regex("^[0-9]+[A-Za-z]?\\s+"), "")
         q = q.replace(Regex("^[0-9]+\\s*(Across|Down)\\s+", RegexOption.IGNORE_CASE), "")
-        // Remove trailing letter counts like "(9)", "(4, 5)", "(39 Across)"
         q = q.replace(Regex("\\([0-9,\\s]+(letters)?\\)$"), "")
         q = q.replace(Regex("\\([0-9]+\\s*(Across|Down)\\)$", RegexOption.IGNORE_CASE), "")
         return q.trim()
@@ -128,9 +240,6 @@ object EncyclopediaService {
         }
     }
 
-    /**
-     * Searches Wikipedia for matching articles when a phrase or clue is searched.
-     */
     private fun searchWikiTitle(query: String): String? {
         return try {
             val encoded = URLEncoder.encode(query, "UTF-8")
@@ -191,7 +300,7 @@ object EncyclopediaService {
             connection.requestMethod = "GET"
             connection.connectTimeout = 5000
             connection.readTimeout = 5000
-            connection.setRequestProperty("User-Agent", "CrossWithFriendsCompanion/1.2 (Android)")
+            connection.setRequestProperty("User-Agent", "CrossWithFriendsCompanion/1.3 (Android)")
             if (connection.responseCode in 200..299) {
                 val response = connection.inputStream.bufferedReader().use { it.readText() }
                 JSONObject(response)
@@ -208,10 +317,26 @@ object EncyclopediaService {
             connection.requestMethod = "GET"
             connection.connectTimeout = 5000
             connection.readTimeout = 5000
-            connection.setRequestProperty("User-Agent", "CrossWithFriendsCompanion/1.2 (Android)")
+            connection.setRequestProperty("User-Agent", "CrossWithFriendsCompanion/1.3 (Android)")
             if (connection.responseCode in 200..299) {
                 val response = connection.inputStream.bufferedReader().use { it.readText() }
                 JSONArray(response)
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun fetchString(urlString: String): String? {
+        return try {
+            val url = URL(urlString)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 6000
+            connection.readTimeout = 6000
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
+            if (connection.responseCode in 200..299) {
+                connection.inputStream.bufferedReader().use { it.readText() }
             } else null
         } catch (e: Exception) {
             null

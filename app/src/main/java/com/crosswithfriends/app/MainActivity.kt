@@ -37,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private var fileUploadCallback: ValueCallback<Array<Uri>>? = null
     private lateinit var fileChooserLauncher: ActivityResultLauncher<Intent>
     private var backPressedTime: Long = 0
+    private var returnedFromExternalAuth = false
 
     companion object {
         const val BASE_URL = "https://www.crosswithfriends.com/"
@@ -48,16 +49,6 @@ class MainActivity : AppCompatActivity() {
             "www.crosswithfriends.com",
             "downforacross.com",
             "www.downforacross.com"
-        )
-
-        // Domains required for seamless in-app Google Sign-In and OAuth
-        private val AUTH_HOSTS = listOf(
-            "accounts.google.com",
-            "accounts.youtube.com",
-            "apis.google.com",
-            "ssl.gstatic.com",
-            "appleid.apple.com",
-            "github.com"
         )
     }
 
@@ -78,6 +69,16 @@ class MainActivity : AppCompatActivity() {
         handleIntentUrl(intent)
     }
 
+    override fun onResume() {
+        super.onResume()
+        // If returning from external browser OAuth, refresh to apply updated sessions
+        if (returnedFromExternalAuth) {
+            returnedFromExternalAuth = false
+            CookieManager.getInstance().flush()
+            binding.webView.reload()
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -86,7 +87,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleIntentUrl(incomingIntent: Intent?) {
         val appLinkData: Uri? = incomingIntent?.data
-        if (appLinkData != null && (isAllowedHost(appLinkData.host) || isAuthHost(appLinkData.host))) {
+        if (appLinkData != null && isAllowedHost(appLinkData.host)) {
             binding.webView.loadUrl(appLinkData.toString())
         } else {
             val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -104,9 +105,13 @@ class MainActivity : AppCompatActivity() {
         return ALLOWED_HOSTS.any { allowed -> host.equals(allowed, ignoreCase = true) || host.endsWith(".$allowed") }
     }
 
-    private fun isAuthHost(host: String?): Boolean {
-        if (host == null) return false
-        return AUTH_HOSTS.any { auth -> host.equals(auth, ignoreCase = true) || host.endsWith(".$auth") }
+    private fun isGoogleAuthUrl(url: Uri): Boolean {
+        val host = url.host ?: return false
+        val path = url.path ?: ""
+        return host.contains("accounts.google.com") ||
+               path.contains("/auth/google") ||
+               path.contains("/api/auth/google") ||
+               url.toString().contains("oauth") && host.contains("google")
     }
 
     private fun setupFab() {
@@ -150,11 +155,9 @@ class MainActivity : AppCompatActivity() {
         settings.databaseEnabled = true
         settings.cacheMode = WebSettings.LOAD_DEFAULT
 
-        // Enable popup windows & multi-window support for Google Sign-In
         settings.setSupportMultipleWindows(true)
         settings.javaScriptCanOpenWindowsAutomatically = true
 
-        // Viewport and smooth touch settings
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
         settings.setSupportZoom(true)
@@ -166,14 +169,12 @@ class MainActivity : AppCompatActivity() {
         settings.allowContentAccess = true
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
 
-        // Modern Mobile Chrome User-Agent (strips WebView tags to avoid OAuth rejection)
         val defaultUserAgent = settings.userAgentString
         val sanitizedUserAgent = defaultUserAgent
             .replace("; wv", "")
             .replace(Regex("Version/\\d+\\.\\d+\\s?"), "")
         settings.userAgentString = sanitizedUserAgent
 
-        // Enable third party cookies for cross-origin JWT authentication
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
         cookieManager.setAcceptThirdPartyCookies(webView, true)
@@ -210,13 +211,21 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            // Route OAuth popups directly inside this WebView so cookies are shared
             override fun onCreateWindow(
                 view: WebView?,
                 isDialog: Boolean,
                 isUserGesture: Boolean,
                 resultMsg: Message?
             ): Boolean {
+                val hrefMsg = view?.handler?.obtainMessage()
+                view?.requestFocusNodeHref(hrefMsg)
+                val targetUrl = hrefMsg?.data?.getString("url")
+
+                if (targetUrl != null && isGoogleAuthUrl(Uri.parse(targetUrl))) {
+                    launchBrowserForGoogleAuth(Uri.parse(targetUrl))
+                    return true
+                }
+
                 val transport = resultMsg?.obj as? WebView.WebViewTransport
                 transport?.webView = view
                 resultMsg?.sendToTarget()
@@ -251,12 +260,18 @@ class MainActivity : AppCompatActivity() {
                 val url = request?.url ?: return false
                 val host = url.host
 
-                // If internal URL OR an OAuth sign-in domain, keep it inside the WebView!
-                if (isAllowedHost(host) || isAuthHost(host)) {
+                // If Google Sign-In is triggered, redirect to external browser per user request
+                if (isGoogleAuthUrl(url)) {
+                    launchBrowserForGoogleAuth(url)
+                    return true
+                }
+
+                // If internal URL, load within the WebView
+                if (isAllowedHost(host)) {
                     return false
                 }
 
-                // External websites (e.g. donations, external links) open in Chrome Custom Tab
+                // External websites open in Chrome Custom Tab
                 if (url.scheme == "https" || url.scheme == "http") {
                     try {
                         val customTabsIntent = CustomTabsIntent.Builder().setShowTitle(true).build()
@@ -280,7 +295,6 @@ class MainActivity : AppCompatActivity() {
                 super.onPageStarted(view, url, favicon)
                 binding.errorView.visibility = View.GONE
 
-                // Smooth Parallax Transition: start slight slide and fade
                 binding.webView.animate()
                     .alpha(0.35f)
                     .translationY(16f)
@@ -293,16 +307,13 @@ class MainActivity : AppCompatActivity() {
                 binding.swipeRefreshLayout.isRefreshing = false
                 binding.initialSpinner.visibility = View.GONE
 
-                // Flush auth cookies to disk
                 CookieManager.getInstance().flush()
 
-                // Save game room URL for session recovery
                 if (url != null && isAllowedHost(Uri.parse(url).host)) {
                     val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                     prefs.edit().putString(KEY_LAST_URL, url).apply()
                 }
 
-                // Smooth Parallax Transition: ease in
                 binding.webView.animate()
                     .alpha(1.0f)
                     .translationY(0f)
@@ -310,7 +321,6 @@ class MainActivity : AppCompatActivity() {
                     .setInterpolator(DecelerateInterpolator())
                     .start()
 
-                // Inject enhanced fonts, clue expansion, and minimalist UX styling
                 injectMinimalistStyling(view)
             }
 
@@ -329,20 +339,32 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Injects CSS & JS to fix clue overflow (Issue 6), apply modern fonts (Issue 4),
-     * and smooth parallax transitions (Issue 3).
+     * Launches external Chrome / System Browser for Google OAuth so the user
+     * can select their existing device Google account without typing passwords.
      */
+    private fun launchBrowserForGoogleAuth(url: Uri) {
+        returnedFromExternalAuth = true
+        try {
+            val customTabsIntent = CustomTabsIntent.Builder()
+                .setShowTitle(true)
+                .build()
+            customTabsIntent.launchUrl(this, url)
+        } catch (e: Exception) {
+            val browserIntent = Intent(Intent.ACTION_VIEW, url)
+            startActivity(browserIntent)
+        }
+    }
+
     private fun injectMinimalistStyling(view: WebView?) {
         val js = """
             (function() {
-                var styleId = 'zen-app-styling-v2';
+                var styleId = 'zen-app-styling-v3';
                 var existing = document.getElementById(styleId);
                 if (existing) existing.remove();
 
                 var style = document.createElement('style');
                 style.id = styleId;
                 style.innerHTML = `
-                    /* Modern System Typography */
                     html, body, * {
                         font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
                     }
@@ -354,7 +376,6 @@ class MainActivity : AppCompatActivity() {
                         overscroll-behavior-y: none !important;
                     }
 
-                    /* Parallax Transition for dynamic room loads */
                     .game--container, .game, main, #root {
                         animation: zenParallax 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
                     }
@@ -363,7 +384,6 @@ class MainActivity : AppCompatActivity() {
                         100% { opacity: 1; transform: translateY(0); }
                     }
 
-                    /* Issue 6 Fix: Expand and enable scroll for the Clue Bar */
                     .clue-bar, [class*="clueBar"], [class*="clue-bar"], [class*="ClueBar"], [class*="current-clue"] {
                         min-height: 52px !important;
                         max-height: 110px !important;
@@ -383,7 +403,6 @@ class MainActivity : AppCompatActivity() {
                         font-size: 14.5px !important;
                     }
 
-                    /* Crossword board width optimization */
                     .board-container, .cw-board {
                         padding: 2px !important;
                         margin: 0 auto !important;
@@ -418,11 +437,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Issue 2 Fix: In React SPAs, if the user is in a room or game URL,
-     * back should navigate out of the game room or back in web history,
-     * instead of immediately prompting to exit!
-     */
     private fun setupBackNavigation() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -435,7 +449,6 @@ class MainActivity : AppCompatActivity() {
                 if (binding.webView.canGoBack()) {
                     binding.webView.goBack()
                 } else if (!isAtRoot) {
-                    // Navigate back to the main puzzles list / homepage
                     binding.webView.evaluateJavascript(
                         "if (window.history.length > 1) { window.history.back(); } else { window.location.href = '/'; }",
                         null

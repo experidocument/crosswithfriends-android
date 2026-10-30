@@ -5,23 +5,23 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="?android:attr/colorBackground"
-    android:paddingBottom="36dp">
+    android:paddingBottom="40dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:padding="18dp">
 
         <!-- Bottom Sheet Drag Handle -->
         <View
             android:layout_width="40dp"
             android:layout_height="4dp"
             android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="14dp"
             android:background="#40808080" />
 
-        <!-- Header Row with Tab Toggle and Close Button -->
+        <!-- Header Row with 3 Bifurcated Tabs and Close Button -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -37,13 +37,22 @@
                 app:selectionRequired="true">
 
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnTabLookup"
+                    android:id="@+id/btnTabWord"
                     style="?attr/materialButtonOutlinedStyle"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="🔍 Hint Lookup"
-                    android:textSize="12sp" />
+                    android:text="🔤 Word"
+                    android:textSize="11sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnTabClue"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="🧩 Clue"
+                    android:textSize="11sp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnTabJournal"
@@ -51,8 +60,8 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="📚 My Journal"
-                    android:textSize="12sp" />
+                    android:text="📚 Journal"
+                    android:textSize="11sp" />
 
             </com.google.android.material.button.MaterialButtonToggleGroup>
 
@@ -67,21 +76,20 @@
 
         </LinearLayout>
 
-        <!-- ================= LOOKUP VIEW ================= -->
+        <!-- ================= 1. WORD OR TERM VIEW (ENCYCLOPEDIA + SAVE) ================= -->
         <LinearLayout
-            android:id="@+id/viewLookup"
+            android:id="@+id/viewWord"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:layout_marginTop="16dp">
 
-            <!-- Search Input Box -->
             <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/tilQuery"
+                android:id="@+id/tilWordQuery"
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="Search clue or word (e.g. Mint julep, Lanai, Klimt)..."
+                android:hint="Type word or term (e.g. Lanai, Mint julep, Udon)..."
                 app:endIconMode="custom"
                 app:endIconDrawable="@drawable/ic_search"
                 app:boxCornerRadiusTopStart="12dp"
@@ -90,29 +98,28 @@
                 app:boxCornerRadiusBottomEnd="12dp">
 
                 <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etQuery"
+                    android:id="@+id/etWordQuery"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:imeOptions="actionSearch"
-                    android:inputType="textCapSentences"
-                    android:maxLines="2" />
+                    android:inputType="textCapWords"
+                    android:maxLines="1" />
 
             </com.google.android.material.textfield.TextInputLayout>
 
-            <!-- Optional Clue Text Input -->
             <com.google.android.material.textfield.TextInputLayout
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:hint="Crossword Clue text (optional, e.g. 5A Rodent and Ant...)"
+                android:hint="Crossword Clue (optional, e.g. Island west of Maui)"
                 app:boxCornerRadiusTopStart="12dp"
                 app:boxCornerRadiusTopEnd="12dp"
                 app:boxCornerRadiusBottomStart="12dp"
                 app:boxCornerRadiusBottomEnd="12dp">
 
                 <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/etClue"
+                    android:id="@+id/etWordClue"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="textCapSentences"
@@ -120,7 +127,6 @@
 
             </com.google.android.material.textfield.TextInputLayout>
 
-            <!-- Category Selector Chips -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -180,9 +186,8 @@
                 </com.google.android.material.chip.ChipGroup>
             </HorizontalScrollView>
 
-            <!-- Loading Indicator -->
             <ProgressBar
-                android:id="@+id/progressLookup"
+                android:id="@+id/progressWord"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
                 android:layout_gravity="center_horizontal"
@@ -255,7 +260,7 @@
                         android:textStyle="italic"
                         android:textColor="?android:attr/textColorSecondary" />
 
-                    <!-- Action Buttons -->
+                    <!-- Action Buttons to Save in Journal format -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -284,7 +289,7 @@
                     </LinearLayout>
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnGoogleSearch"
+                        android:id="@+id/btnGoogleSearchWord"
                         style="@style/Widget.Material3.Button.TextButton"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -298,7 +303,87 @@
 
         </LinearLayout>
 
-        <!-- ================= JOURNAL VIEW ================= -->
+        <!-- ================= 2. CLUE SEARCH VIEW (TOP 4-5 ANSWERS + NOTIFICATION) ================= -->
+        <LinearLayout
+            android:id="@+id/viewClue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="16dp"
+            android:visibility="gone">
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilClueQuery"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Enter crossword clue (e.g. Rodent and Ant went...)"
+                app:endIconMode="custom"
+                app:endIconDrawable="@drawable/ic_search"
+                app:boxCornerRadiusTopStart="12dp"
+                app:boxCornerRadiusTopEnd="12dp"
+                app:boxCornerRadiusBottomStart="12dp"
+                app:boxCornerRadiusBottomEnd="12dp">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etClueInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:imeOptions="actionSearch"
+                    android:inputType="textCapSentences"
+                    android:maxLines="3" />
+
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <ProgressBar
+                android:id="@+id/progressClue"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="16dp"
+                android:visibility="gone" />
+
+            <!-- Informational Banner for user guidance -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardClueTip"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                app:cardCornerRadius="10dp"
+                app:cardBackgroundColor="#1A1976D2"
+                app:strokeWidth="0dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="12dp"
+                    android:text="💡 Tip: Found the answer? Switch to the 'Word' tab to lookup its trivia and save it to your Journal!"
+                    android:textSize="12sp"
+                    android:textColor="?attr/colorPrimary" />
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Container for the 4-5 Clue Result Cards -->
+            <LinearLayout
+                android:id="@+id/containerClueResults"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="12dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnOpenGoogleClue"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="🌐 View All Results on Google"
+                android:visibility="gone"
+                app:cornerRadius="10dp" />
+
+        </LinearLayout>
+
+        <!-- ================= 3. JOURNAL VIEW (SAVED DATABASE & DIRECT SYNC) ================= -->
         <LinearLayout
             android:id="@+id/viewJournal"
             android:layout_width="match_parent"
@@ -349,7 +434,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="32dp"
                 android:gravity="center"
-                android:text="No words saved yet.\nUse the Hint Lookup tab to search and save clues!"
+                android:text="No words saved yet.\nUse the Word tab to search trivia and save clues!"
                 android:textSize="14sp"
                 android:textColor="?android:attr/textColorSecondary" />
 
