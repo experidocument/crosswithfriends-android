@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#1976D2</color>
+    <color name="primary_dark">#1565C0</color>
+    <color name="primary_variant">#0D47A1</color>
+    <color name="accent">#FFB300</color>
+    
+    <color name="background_light">#FFFFFF</color>
+    <color name="surface_light">#F5F5F5</color>
+    <color name="text_primary_light">#212121</color>
+    <color name="text_secondary_light">#757575</color>
+
+    <color name="background_dark">#121212</color>
+    <color name="surface_dark">#1E1E1E</color>
+    <color name="text_primary_dark">#EEEEEE</color>
+    <color name="text_secondary_dark">#B0B0B0</color>
+
+    <!-- Crossword branding colors -->
+    <color name="cw_grid_line">#333333</color>
+    <color name="cw_black_cell">#000000</color>
+    <color name="cw_white_cell">#FFFFFF</color>
+    <color name="cw_yellow_highlight">#FFF59D</color>
+</resources>

@@ -1,0 +1,52 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="1.1"
+        android:scaleY="1.1"
+        android:translateX="-5.4"
+        android:translateY="-5.4">
+        
+        <!-- Crossword Outer Border -->
+        <path
+            android:fillColor="#0D47A1"
+            android:pathData="M26,26h56v56h-56z"/>
+            
+        <!-- Grid Cells (White base) -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M28,28h52v52h-52z"/>
+            
+        <!-- Grid lines and black cells -->
+        <!-- Row 1: Cell 1 (White), Cell 2 (White), Cell 3 (Black) -->
+        <path
+            android:fillColor="#212121"
+            android:pathData="M64,28h16v16h-16z"/>
+            
+        <!-- Row 2: Cell 4 (White - Highlighted Yellow), Cell 5 (Black), Cell 6 (White) -->
+        <path
+            android:fillColor="#FFF59D"
+            android:pathData="M28,46h16v16h-16z"/>
+        <path
+            android:fillColor="#212121"
+            android:pathData="M46,46h16v16h-16z"/>
+            
+        <!-- Row 3: Cell 7 (Black), Cell 8 (White), Cell 9 (White) -->
+        <path
+            android:fillColor="#212121"
+            android:pathData="M28,64h16v16h-16z"/>
+
+        <!-- Grid internal divider lines -->
+        <path
+            android:strokeColor="#90CAF9"
+            android:strokeWidth="1.5"
+            android:pathData="M45,28v52 M63,28v52 M28,45h52 M28,63h52"/>
+            
+        <!-- Mini pencil accent in corner -->
+        <path
+            android:fillColor="#FFD54F"
+            android:pathData="M78,72l6,6 -10,3z"/>
+    </group>
+</vector>
