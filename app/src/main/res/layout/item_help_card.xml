@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:paddingHorizontal="24dp"
+    android:paddingVertical="16dp">
+
+    <TextView
+        android:id="@+id/tvCardEmoji"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="☕"
+        android:textSize="44sp" />
+
+    <TextView
+        android:id="@+id/tvCardTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:gravity="center"
+        android:text="Card Title"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="?android:attr/textColorPrimary" />
+
+    <TextView
+        android:id="@+id/tvCardBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="STEP 1 OF 6"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:textColor="?attr/colorPrimary"
+        android:letterSpacing="0.08" />
+
+    <TextView
+        android:id="@+id/tvCardBody"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:gravity="center"
+        android:lineSpacingExtra="4dp"
+        android:text="Quirky fun card description..."
+        android:textSize="14sp"
+        android:textColor="?android:attr/textColorSecondary" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnCardAction"
+        style="?attr/materialButtonOutlinedStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="📘 View Webhook Guide"
+        android:textSize="12sp"
+        android:visibility="gone"
+        app:cornerRadius="12dp" />
+
+</LinearLayout>

@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="?android:attr/colorBackground"
+    android:paddingTop="16dp"
+    android:paddingBottom="24dp">
+
+    <!-- Top Drag Handle & Close Button -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="16dp">
+
+        <View
+            android:layout_width="40dp"
+            android:layout_height="4dp"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="4dp"
+            android:background="#40808080" />
+
+        <ImageButton
+            android:id="@+id/btnCloseHelp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_alignParentEnd="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Close"
+            android:src="@drawable/ic_close" />
+
+    </RelativeLayout>
+
+    <!-- ViewPager for 6 Carousel Cards -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/viewPagerHelp"
+        android:layout_width="match_parent"
+        android:layout_height="340dp" />
+
+    <!-- Bottom Indicator Dots & Next / Previous Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="24dp"
+        android:layout_marginTop="8dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnHelpPrev"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Back"
+            android:textSize="13sp"
+            android:visibility="invisible" />
+
+        <!-- 6 Circle Indicator Dots -->
+        <LinearLayout
+            android:id="@+id/layoutDots"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginHorizontal="3dp"
+                android:src="@drawable/dot_active" />
+
+            <ImageView
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginHorizontal="3dp"
+                android:src="@drawable/dot_inactive" />
+
+            <ImageView
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginHorizontal="3dp"
+                android:src="@drawable/dot_inactive" />
+
+            <ImageView
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginHorizontal="3dp"
+                android:src="@drawable/dot_inactive" />
+
+            <ImageView
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginHorizontal="3dp"
+                android:src="@drawable/dot_inactive" />
+
+            <ImageView
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginHorizontal="3dp"
+                android:src="@drawable/dot_inactive" />
+
+        </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnHelpNext"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Next"
+            android:textSize="13sp"
+            app:cornerRadius="18dp" />
+
+    </LinearLayout>
+
+</LinearLayout>

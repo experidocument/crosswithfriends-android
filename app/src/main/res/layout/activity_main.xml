@@ -93,7 +93,22 @@
             android:layout_gravity="center"
             android:visibility="visible" />
 
-        <!-- Floating Hint & Learning Companion Button -->
+        <!-- Mini Help Button (Bottom-Left, significantly smaller) -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabHelp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|start"
+            android:layout_marginStart="20dp"
+            android:layout_marginBottom="28dp"
+            android:contentDescription="How to use this app"
+            android:src="@drawable/ic_help"
+            app:backgroundTint="?attr/colorPrimary"
+            app:tint="@android:color/white"
+            app:elevation="4dp"
+            app:fabSize="mini" />
+
+        <!-- Floating Hint & Learning Companion Button (Bottom-Right) -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fabHint"
             android:layout_width="wrap_content"

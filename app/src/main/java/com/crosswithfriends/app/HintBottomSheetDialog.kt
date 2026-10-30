@@ -14,7 +14,6 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
-import com.crosswithfriends.app.databinding.ItemClueSearchResultBinding
 import com.crosswithfriends.app.databinding.ItemJournalEntryBinding
 import com.crosswithfriends.app.databinding.LayoutHintSheetBinding
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -95,12 +94,11 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
         binding.btnSaveToJournal.setOnClickListener {
             val data = currentWordResult ?: return@setOnClickListener
             val selectedCategory = getSelectedCategory(data.category)
-            val userClue = binding.etWordClue.text?.toString()?.trim() ?: ""
 
             val entry = JournalEntry(
                 word = data.word,
                 category = selectedCategory,
-                clue = userClue,
+                clue = "",
                 trivia = data.trivia,
                 etymology = data.etymology,
                 example = data.example,
@@ -114,12 +112,11 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
         binding.btnSyncDriveSingle.setOnClickListener {
             val data = currentWordResult ?: return@setOnClickListener
             val selectedCategory = getSelectedCategory(data.category)
-            val userClue = binding.etWordClue.text?.toString()?.trim() ?: ""
 
             val entry = JournalEntry(
                 word = data.word,
                 category = selectedCategory,
-                clue = userClue,
+                clue = "",
                 trivia = data.trivia,
                 etymology = data.etymology,
                 example = data.example,
@@ -198,7 +195,7 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
     }
 
     // ==========================================
-    // 2. CROSSWORD CLUE SECTION
+    // 2. CROSSWORD CLUE SECTION (AI OVERVIEW)
     // ==========================================
     private fun setupClueSearch() {
         binding.etClueInput.setOnEditorActionListener { _, actionId, _ ->
@@ -211,12 +208,6 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
         binding.tilClueQuery.setEndIconOnClickListener {
             performClueSearch()
         }
-
-        binding.btnOpenGoogleClue.setOnClickListener {
-            val clueText = binding.etClueInput.text?.toString()?.trim() ?: ""
-            val searchUrl = "https://www.google.com/search?q=" + URLEncoder.encode("$clueText crossword clue", "UTF-8")
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl)))
-        }
     }
 
     private fun performClueSearch() {
@@ -227,17 +218,25 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
         }
 
         binding.progressClue.visibility = View.VISIBLE
-        binding.containerClueResults.removeAllViews()
+        binding.cardAiOverview.visibility = View.GONE
         binding.btnOpenGoogleClue.visibility = View.GONE
 
         lifecycleScope.launch {
-            val result = EncyclopediaService.searchClueWeb(clue)
+            val result = EncyclopediaService.getClueAiOverview(clue)
             binding.progressClue.visibility = View.GONE
 
-            result.onSuccess { resultsList ->
-                displayClueResults(resultsList)
+            result.onSuccess { overview ->
+                binding.cardAiOverview.visibility = View.VISIBLE
+                binding.tvAiOverviewAnswer.text = overview.answer
+                binding.tvAiOverviewLetters.text = overview.lettersCount
+                binding.tvAiOverviewExplanation.text = overview.explanation
 
-                // Flash notification to prompt user to use the Word section to save
+                binding.btnOpenGoogleClue.visibility = View.VISIBLE
+                binding.btnOpenGoogleClue.setOnClickListener {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(overview.sourceUrl)))
+                }
+
+                // Flash prompt for user to save via the Word section
                 view?.let { root ->
                     Snackbar.make(
                         root,
@@ -248,28 +247,8 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
                     }.show()
                 }
             }.onFailure {
-                Toast.makeText(requireContext(), "Could not retrieve web search results.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Could not retrieve AI Overview.", Toast.LENGTH_SHORT).show()
             }
-        }
-    }
-
-    private fun displayClueResults(results: List<ClueSearchResult>) {
-        binding.containerClueResults.removeAllViews()
-        binding.btnOpenGoogleClue.visibility = View.VISIBLE
-
-        val inflater = LayoutInflater.from(requireContext())
-        results.forEach { item ->
-            val itemBinding = ItemClueSearchResultBinding.inflate(inflater, binding.containerClueResults, false)
-            itemBinding.tvClueResultTitle.text = item.title
-            itemBinding.tvClueResultSnippet.text = item.snippet
-
-            itemBinding.root.setOnClickListener {
-                if (item.sourceUrl.isNotBlank()) {
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(item.sourceUrl)))
-                }
-            }
-
-            binding.containerClueResults.addView(itemBinding.root)
         }
     }
 

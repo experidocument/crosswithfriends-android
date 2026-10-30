@@ -27,6 +27,7 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.browser.customtabs.CustomTabsIntent
 import com.crosswithfriends.app.databinding.ActivityMainBinding
@@ -37,12 +38,12 @@ class MainActivity : AppCompatActivity() {
     private var fileUploadCallback: ValueCallback<Array<Uri>>? = null
     private lateinit var fileChooserLauncher: ActivityResultLauncher<Intent>
     private var backPressedTime: Long = 0
-    private var returnedFromExternalAuth = false
 
     companion object {
         const val BASE_URL = "https://www.crosswithfriends.com/"
         private const val PREFS_NAME = "CrossWithFriendsPrefs"
         private const val KEY_LAST_URL = "last_visited_url"
+        private const val KEY_FIRST_LAUNCH = "is_first_launch_v14"
 
         private val ALLOWED_HOSTS = listOf(
             "crosswithfriends.com",
@@ -64,19 +65,26 @@ class MainActivity : AppCompatActivity() {
         setupSwipeRefresh()
         setupBackNavigation()
         setupErrorHandling()
-        setupFab()
+        setupFabButtons()
 
         handleIntentUrl(intent)
+        checkFirstLaunchOnboarding()
     }
 
-    override fun onResume() {
-        super.onResume()
-        // If returning from external browser OAuth, refresh to apply updated sessions
-        if (returnedFromExternalAuth) {
-            returnedFromExternalAuth = false
-            CookieManager.getInstance().flush()
-            binding.webView.reload()
+    private fun checkFirstLaunchOnboarding() {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_FIRST_LAUNCH, true)) {
+            prefs.edit().putBoolean(KEY_FIRST_LAUNCH, false).apply()
+            binding.root.postDelayed({
+                if (!isFinishing && !isDestroyed) {
+                    showHelpDialog()
+                }
+            }, 800)
         }
+    }
+
+    private fun showHelpDialog() {
+        HelpBottomSheetDialog().show(supportFragmentManager, HelpBottomSheetDialog.TAG)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -111,13 +119,19 @@ class MainActivity : AppCompatActivity() {
         return host.contains("accounts.google.com") ||
                path.contains("/auth/google") ||
                path.contains("/api/auth/google") ||
-               url.toString().contains("oauth") && host.contains("google")
+               (url.toString().contains("oauth") && host.contains("google"))
     }
 
-    private fun setupFab() {
+    private fun setupFabButtons() {
+        // Bottom-Right Hint & Learning Companion Button
         binding.fabHint.setOnClickListener {
             val dialog = HintBottomSheetDialog()
             dialog.show(supportFragmentManager, HintBottomSheetDialog.TAG)
+        }
+
+        // Bottom-Left Mini Help & Onboarding Button
+        binding.fabHelp.setOnClickListener {
+            showHelpDialog()
         }
     }
 
@@ -222,7 +236,7 @@ class MainActivity : AppCompatActivity() {
                 val targetUrl = hrefMsg?.data?.getString("url")
 
                 if (targetUrl != null && isGoogleAuthUrl(Uri.parse(targetUrl))) {
-                    launchBrowserForGoogleAuth(Uri.parse(targetUrl))
+                    showGoogleAuthNotice(Uri.parse(targetUrl))
                     return true
                 }
 
@@ -260,9 +274,9 @@ class MainActivity : AppCompatActivity() {
                 val url = request?.url ?: return false
                 val host = url.host
 
-                // If Google Sign-In is triggered, redirect to external browser per user request
+                // If Google Sign-In is triggered, show notice explaining Card #2
                 if (isGoogleAuthUrl(url)) {
-                    launchBrowserForGoogleAuth(url)
+                    showGoogleAuthNotice(url)
                     return true
                 }
 
@@ -339,26 +353,30 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Launches external Chrome / System Browser for Google OAuth so the user
-     * can select their existing device Google account without typing passwords.
+     * In-app Google Sign-In notice explaining why direct Google login is blocked in web wrappers
+     * and offering to view Help Cards or open browser.
      */
-    private fun launchBrowserForGoogleAuth(url: Uri) {
-        returnedFromExternalAuth = true
-        try {
-            val customTabsIntent = CustomTabsIntent.Builder()
-                .setShowTitle(true)
-                .build()
-            customTabsIntent.launchUrl(this, url)
-        } catch (e: Exception) {
-            val browserIntent = Intent(Intent.ACTION_VIEW, url)
-            startActivity(browserIntent)
-        }
+    private fun showGoogleAuthNotice(url: Uri) {
+        AlertDialog.Builder(this)
+            .setTitle("Sign-In with Google")
+            .setMessage("Direct 1-tap Google Sign-In is blocked inside mobile web wrappers by Google's security policy.\n\nRecommended: Log in or sign up using your Email & Password directly to stay permanently signed in on this app!")
+            .setPositiveButton("How to Log In") { _, _ -> showHelpDialog() }
+            .setNegativeButton("Open Browser Anyway") { _, _ ->
+                try {
+                    val customTabsIntent = CustomTabsIntent.Builder().setShowTitle(true).build()
+                    customTabsIntent.launchUrl(this, url)
+                } catch (e: Exception) {
+                    startActivity(Intent(Intent.ACTION_VIEW, url))
+                }
+            }
+            .setNeutralButton("Cancel", null)
+            .show()
     }
 
     private fun injectMinimalistStyling(view: WebView?) {
         val js = """
             (function() {
-                var styleId = 'zen-app-styling-v3';
+                var styleId = 'zen-app-styling-v4';
                 var existing = document.getElementById(styleId);
                 if (existing) existing.remove();
 
