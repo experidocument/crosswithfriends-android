@@ -8,11 +8,8 @@ import android.graphics.Bitmap
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Environment
-import android.view.Menu
-import android.view.MenuItem
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
@@ -41,6 +38,9 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val BASE_URL = "https://www.crosswithfriends.com/"
+        private const val PREFS_NAME = "CrossWithFriendsPrefs"
+        private const val KEY_LAST_URL = "last_visited_url"
+
         private val ALLOWED_HOSTS = listOf(
             "crosswithfriends.com",
             "www.crosswithfriends.com",
@@ -54,13 +54,15 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        setSupportActionBar(binding.toolbar)
+        // Enable Chrome Remote WebContents Debugging for inspecting via chrome://inspect
+        WebView.setWebContentsDebuggingEnabled(true)
 
         setupFileChooser()
         setupWebView()
         setupSwipeRefresh()
         setupBackNavigation()
         setupErrorHandling()
+        setupFab()
 
         handleIntentUrl(intent)
     }
@@ -75,14 +77,28 @@ class MainActivity : AppCompatActivity() {
         val appLinkData: Uri? = incomingIntent?.data
         if (appLinkData != null && isAllowedHost(appLinkData.host)) {
             binding.webView.loadUrl(appLinkData.toString())
-        } else if (binding.webView.url.isNullOrEmpty()) {
-            binding.webView.loadUrl(BASE_URL)
+        } else {
+            // Feature: Resume Last Game Session if available
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val savedUrl = prefs.getString(KEY_LAST_URL, null)
+            if (!savedUrl.isNullOrEmpty() && isAllowedHost(Uri.parse(savedUrl).host)) {
+                binding.webView.loadUrl(savedUrl)
+            } else if (binding.webView.url.isNullOrEmpty()) {
+                binding.webView.loadUrl(BASE_URL)
+            }
         }
     }
 
     private fun isAllowedHost(host: String?): Boolean {
         if (host == null) return false
         return ALLOWED_HOSTS.any { allowed -> host.equals(allowed, ignoreCase = true) || host.endsWith(".$allowed") }
+    }
+
+    private fun setupFab() {
+        binding.fabHint.setOnClickListener {
+            val dialog = HintBottomSheetDialog()
+            dialog.show(supportFragmentManager, HintBottomSheetDialog.TAG)
+        }
     }
 
     private fun setupFileChooser() {
@@ -120,12 +136,12 @@ class MainActivity : AppCompatActivity() {
         settings.databaseEnabled = true
         settings.cacheMode = WebSettings.LOAD_DEFAULT
 
-        // Responsive viewport settings
+        // Smooth Touch & Responsive viewport settings
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
         settings.setSupportZoom(true)
         settings.builtInZoomControls = true
-        settings.displayZoomControls = false
+        settings.displayZoomControls = false // Hide +/- overlay buttons
 
         // Media and audio (for puzzle victory sounds/chimes)
         settings.mediaPlaybackRequiresUserGesture = false
@@ -166,7 +182,6 @@ class MainActivity : AppCompatActivity() {
                 dm.enqueue(request)
                 Toast.makeText(this, "Downloading file...", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
-                // Fallback: open in browser
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
             }
         })
@@ -226,7 +241,6 @@ class MainActivity : AppCompatActivity() {
                         customTabsIntent.launchUrl(this@MainActivity, url)
                         return true
                     } catch (e: Exception) {
-                        // Fallback to standard browser intent
                         startActivity(Intent(Intent.ACTION_VIEW, url))
                         return true
                     }
@@ -251,6 +265,15 @@ class MainActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 binding.swipeRefreshLayout.isRefreshing = false
                 binding.initialSpinner.visibility = View.GONE
+
+                // Save active game room URL for session resumption
+                if (url != null && isAllowedHost(Uri.parse(url).host)) {
+                    val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    prefs.edit().putString(KEY_LAST_URL, url).apply()
+                }
+
+                // Feature A: Inject minimal CSS & smooth fade-in to feel like a native app
+                injectMinimalistStyling(view)
             }
 
             override fun onReceivedError(
@@ -259,13 +282,58 @@ class MainActivity : AppCompatActivity() {
                 error: WebResourceError?
             ) {
                 super.onReceivedError(view, request, error)
-                // Only show offline screen if the main page failed to load
                 if (request?.isForMainFrame == true && !isNetworkAvailable()) {
                     binding.errorView.visibility = View.VISIBLE
                     binding.swipeRefreshLayout.isRefreshing = false
                 }
             }
         }
+    }
+
+    /**
+     * Injects CSS and JavaScript to remove website headers/footers, apply edge-to-edge
+     * padding, and render smooth transitions for a native app feel.
+     */
+    private fun injectMinimalistStyling(view: WebView?) {
+        val js = """
+            (function() {
+                var existingStyle = document.getElementById('zen-app-styling');
+                if (existingStyle) return;
+
+                var style = document.createElement('style');
+                style.id = 'zen-app-styling';
+                style.innerHTML = `
+                    /* Smooth font rendering and remove unwanted scroll bounce */
+                    html, body {
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        -webkit-user-select: none;
+                        user-select: none;
+                        -webkit-tap-highlight-color: transparent;
+                        overscroll-behavior-y: none;
+                    }
+
+                    /* Fade-in animation when rooms load */
+                    body {
+                        animation: zenFadeIn 0.25s ease-in-out;
+                    }
+                    @keyframes zenFadeIn {
+                        from { opacity: 0.2; }
+                        to { opacity: 1; }
+                    }
+
+                    /* Ensure crossword board container utilizes full mobile width */
+                    .game--container, .game, .board-container, .cw-board {
+                        padding: 2px !important;
+                        margin: 0 auto !important;
+                        max-width: 100vw !important;
+                    }
+                `;
+                document.head.appendChild(style);
+            })();
+        """.trimIndent()
+
+        view?.evaluateJavascript(js, null)
     }
 
     private fun setupSwipeRefresh() {
@@ -320,51 +388,6 @@ class MainActivity : AppCompatActivity() {
         val network = connectivityManager.activeNetwork ?: return false
         val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
         return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-    }
-
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.main_menu, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.action_share -> {
-                shareCurrentUrl()
-                true
-            }
-            R.id.action_refresh -> {
-                binding.webView.reload()
-                true
-            }
-            R.id.action_home -> {
-                binding.webView.loadUrl(BASE_URL)
-                true
-            }
-            R.id.action_open_browser -> {
-                val currentUrl = binding.webView.url ?: BASE_URL
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(currentUrl)))
-                true
-            }
-            R.id.action_clear_cache -> {
-                binding.webView.clearCache(true)
-                Toast.makeText(this, getString(R.string.cache_cleared), Toast.LENGTH_SHORT).show()
-                binding.webView.reload()
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
-        }
-    }
-
-    private fun shareCurrentUrl() {
-        val currentUrl = binding.webView.url ?: BASE_URL
-        val sendIntent = Intent().apply {
-            action = Intent.ACTION_SEND
-            putExtra(Intent.EXTRA_TEXT, "Join my crossword puzzle room: $currentUrl")
-            type = "text/plain"
-        }
-        val shareIntent = Intent.createChooser(sendIntent, getString(R.string.share_chooser_title))
-        startActivity(shareIntent)
     }
 
     override fun onDestroy() {

@@ -9,40 +9,23 @@
     android:fitsSystemWindows="true"
     android:background="?android:attr/colorBackground">
 
-    <com.google.android.material.appbar.AppBarLayout
-        android:id="@+id/appBarLayout"
+    <!-- Thin 2dp progress bar directly at the top for loading indicator -->
+    <com.google.android.material.progressindicator.LinearProgressIndicator
+        android:id="@+id/progressBar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fitsSystemWindows="true">
-
-        <com.google.android.material.appbar.MaterialToolbar
-            android:id="@+id/toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            android:background="?attr/colorPrimary"
-            app:title="@string/app_name"
-            app:titleTextColor="@android:color/white"
-            app:titleTextAppearance="@style/TextAppearance.Material3.TitleMedium" />
-
-        <!-- Linear horizontal progress bar for webpage loading -->
-        <com.google.android.material.progressindicator.LinearProgressIndicator
-            android:id="@+id/progressBar"
-            android:layout_width="match_parent"
-            android:layout_height="4dp"
-            android:indeterminate="false"
-            android:max="100"
-            android:visibility="gone"
-            app:indicatorColor="@color/accent"
-            app:trackColor="@android:color/transparent" />
-
-    </com.google.android.material.appbar.AppBarLayout>
+        android:layout_height="3dp"
+        android:layout_gravity="top"
+        android:indeterminate="false"
+        android:max="100"
+        android:visibility="gone"
+        app:indicatorColor="@color/accent"
+        app:trackColor="@android:color/transparent" />
 
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+        android:layout_height="match_parent">
 
-        <!-- Pull to refresh container -->
+        <!-- Pull to refresh container filling the entire screen -->
         <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
             android:id="@+id/swipeRefreshLayout"
             android:layout_width="match_parent"
@@ -52,7 +35,7 @@
                 android:id="@+id/webView"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:scrollbars="vertical|horizontal" />
+                android:scrollbars="none" />
 
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
@@ -109,6 +92,21 @@
             android:layout_height="48dp"
             android:layout_gravity="center"
             android:visibility="visible" />
+
+        <!-- Floating Hint & Learning Companion Button -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabHint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="20dp"
+            android:layout_marginBottom="28dp"
+            android:contentDescription="Crossword Hint and Journal"
+            android:src="@drawable/ic_hint"
+            app:backgroundTint="?attr/colorPrimary"
+            app:tint="@android:color/white"
+            app:elevation="6dp"
+            app:fabSize="normal" />
 
     </FrameLayout>
 
