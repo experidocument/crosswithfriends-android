@@ -93,7 +93,21 @@
             android:layout_gravity="center"
             android:visibility="visible" />
 
-        <!-- Mini Help Button (Bottom-Left, significantly smaller) -->
+        <!-- White Home Button on Top Center (Transparent background, visible when inside a puzzle/room) -->
+        <ImageButton
+            android:id="@+id/btnHome"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_gravity="top|center_horizontal"
+            android:layout_marginTop="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Return to Home"
+            android:src="@drawable/ic_home"
+            android:padding="10dp"
+            android:visibility="gone"
+            app:tint="@android:color/white" />
+
+        <!-- Mini Help Button (Bottom-Left, significantly smaller, only on Home Page) -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fabHelp"
             android:layout_width="wrap_content"

@@ -13,7 +13,15 @@ import android.widget.Toast
  * JavaScript interface to enable seamless communication between
  * the Cross with Friends web app and native Android features.
  */
-class WebAppInterface(private val context: Context) {
+class WebAppInterface(
+    private val context: Context,
+    private val onNavigationChanged: ((isHome: Boolean, url: String) -> Unit)? = null
+) {
+
+    @JavascriptInterface
+    fun onNavigationStateChanged(isHome: Boolean, url: String) {
+        onNavigationChanged?.invoke(isHome, url)
+    }
 
     @JavascriptInterface
     fun showToast(message: String) {

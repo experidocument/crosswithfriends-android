@@ -5,6 +5,7 @@ import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Rect
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
@@ -12,7 +13,10 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.Message
 import android.view.View
+import android.view.ViewTreeObserver
+import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
+import android.view.inputmethod.InputMethodManager
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.URLUtil
@@ -38,6 +42,10 @@ class MainActivity : AppCompatActivity() {
     private var fileUploadCallback: ValueCallback<Array<Uri>>? = null
     private lateinit var fileChooserLauncher: ActivityResultLauncher<Intent>
     private var backPressedTime: Long = 0
+
+    private var isOnHomePage = true
+    private var isKeyboardActive = false
+    private var globalLayoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null
 
     companion object {
         const val BASE_URL = "https://www.crosswithfriends.com/"
@@ -66,6 +74,8 @@ class MainActivity : AppCompatActivity() {
         setupBackNavigation()
         setupErrorHandling()
         setupFabButtons()
+        setupHomeButton()
+        setupKeyboardDetection()
 
         handleIntentUrl(intent)
         checkFirstLaunchOnboarding()
@@ -135,6 +145,124 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupHomeButton() {
+        binding.btnHome.setOnClickListener {
+            // Dismiss keyboard if open
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.hideSoftInputFromWindow(binding.root.windowToken, 0)
+
+            // Return directly to the home page
+            binding.webView.loadUrl(BASE_URL)
+        }
+    }
+
+    private fun setupKeyboardDetection() {
+        val rootView = binding.root
+        val visibleRect = Rect()
+
+        globalLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+            rootView.getWindowVisibleDisplayFrame(visibleRect)
+            val screenHeight = rootView.rootView.height
+            val keypadHeight = screenHeight - visibleRect.bottom
+
+            // Threshold: if keyboard takes more than 15% of screen height, it is active
+            val isKeyboardNowOpen = keypadHeight > screenHeight * 0.15
+
+            if (isKeyboardNowOpen != isKeyboardActive) {
+                isKeyboardActive = isKeyboardNowOpen
+                if (isKeyboardActive) {
+                    wipeButtonsDown()
+                } else {
+                    wipeButtonsUp()
+                }
+            }
+        }
+        rootView.viewTreeObserver.addOnGlobalLayoutListener(globalLayoutListener)
+    }
+
+    private fun wipeButtonsDown() {
+        // Wipe down Hint FAB
+        if (binding.fabHint.visibility == View.VISIBLE) {
+            binding.fabHint.animate().cancel()
+            binding.fabHint.animate()
+                .translationY(binding.fabHint.height.toFloat() + 250f)
+                .alpha(0f)
+                .setDuration(220)
+                .setInterpolator(AccelerateInterpolator())
+                .withEndAction {
+                    binding.fabHint.visibility = View.GONE
+                }
+                .start()
+        }
+
+        // Wipe down Help FAB
+        if (binding.fabHelp.visibility == View.VISIBLE) {
+            binding.fabHelp.animate().cancel()
+            binding.fabHelp.animate()
+                .translationY(binding.fabHelp.height.toFloat() + 250f)
+                .alpha(0f)
+                .setDuration(220)
+                .setInterpolator(AccelerateInterpolator())
+                .withEndAction {
+                    binding.fabHelp.visibility = View.GONE
+                }
+                .start()
+        }
+    }
+
+    private fun wipeButtonsUp() {
+        // Wipe up Hint FAB (available on home and puzzle pages)
+        binding.fabHint.animate().cancel()
+        binding.fabHint.visibility = View.VISIBLE
+        binding.fabHint.translationY = binding.fabHint.height.toFloat() + 250f
+        binding.fabHint.alpha = 0f
+        binding.fabHint.animate()
+            .translationY(0f)
+            .alpha(1f)
+            .setDuration(260)
+            .setInterpolator(DecelerateInterpolator())
+            .start()
+
+        // Wipe up Help FAB ONLY if on home page
+        if (isOnHomePage) {
+            binding.fabHelp.animate().cancel()
+            binding.fabHelp.visibility = View.VISIBLE
+            binding.fabHelp.translationY = binding.fabHelp.height.toFloat() + 250f
+            binding.fabHelp.alpha = 0f
+            binding.fabHelp.animate()
+                .translationY(0f)
+                .alpha(1f)
+                .setDuration(260)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+        } else {
+            binding.fabHelp.visibility = View.GONE
+        }
+    }
+
+    private fun updateNavigationState(isHome: Boolean, url: String?) {
+        isOnHomePage = isHome
+
+        // Home button: Only visible when inside a puzzle or other subpages, hidden on home page
+        binding.btnHome.visibility = if (isHome) View.GONE else View.VISIBLE
+
+        // Help button: Only visible on home page and when keyboard is NOT active
+        if (isHome && !isKeyboardActive) {
+            binding.fabHelp.visibility = View.VISIBLE
+            binding.fabHelp.alpha = 1f
+            binding.fabHelp.translationY = 0f
+        } else {
+            binding.fabHelp.visibility = View.GONE
+        }
+    }
+
+    private fun checkIfHomeUrl(url: String?): Boolean {
+        if (url.isNullOrEmpty()) return true
+        val uri = Uri.parse(url)
+        val path = uri.path ?: ""
+        return path.isEmpty() || path == "/" || path == "/index.html" || path == "/beta" || path == "/beta/"
+    }
+
     private fun setupFileChooser() {
         fileChooserLauncher = registerForActivityResult(
             ActivityResultContracts.StartActivityForResult()
@@ -193,7 +321,14 @@ class MainActivity : AppCompatActivity() {
         cookieManager.setAcceptCookie(true)
         cookieManager.setAcceptThirdPartyCookies(webView, true)
 
-        webView.addJavascriptInterface(WebAppInterface(this), "AndroidApp")
+        webView.addJavascriptInterface(
+            WebAppInterface(this) { isHome, newUrl ->
+                runOnUiThread {
+                    updateNavigationState(isHome, newUrl)
+                }
+            },
+            "AndroidApp"
+        )
 
         webView.setDownloadListener(DownloadListener { url, userAgent, contentDisposition, mimetype, _ ->
             try {
@@ -307,6 +442,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                updateNavigationState(checkIfHomeUrl(url), url)
                 binding.errorView.visibility = View.GONE
 
                 binding.webView.animate()
@@ -318,6 +454,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                updateNavigationState(checkIfHomeUrl(url), url)
                 binding.swipeRefreshLayout.isRefreshing = false
                 binding.initialSpinner.visibility = View.GONE
 
@@ -336,6 +473,11 @@ class MainActivity : AppCompatActivity() {
                     .start()
 
                 injectMinimalistStyling(view)
+            }
+
+            override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                super.doUpdateVisitedHistory(view, url, isReload)
+                updateNavigationState(checkIfHomeUrl(url), url)
             }
 
             override fun onReceivedError(
@@ -428,6 +570,36 @@ class MainActivity : AppCompatActivity() {
                     }
                 `;
                 document.head.appendChild(style);
+
+                function checkAndNotifyNav() {
+                    var path = window.location.pathname || '';
+                    var isHome = (path === '/' || path === '' || path === '/index.html' || path === '/beta' || path === '/beta/');
+                    if (window.AndroidApp && window.AndroidApp.onNavigationStateChanged) {
+                        window.AndroidApp.onNavigationStateChanged(isHome, window.location.href);
+                    }
+                }
+
+                if (!window._navMonitorInstalled) {
+                    window._navMonitorInstalled = true;
+                    var origPush = history.pushState;
+                    history.pushState = function() {
+                        var res = origPush.apply(this, arguments);
+                        checkAndNotifyNav();
+                        return res;
+                    };
+
+                    var origReplace = history.replaceState;
+                    history.replaceState = function() {
+                        var res = origReplace.apply(this, arguments);
+                        checkAndNotifyNav();
+                        return res;
+                    };
+
+                    window.addEventListener('popstate', checkAndNotifyNav);
+                    window.addEventListener('hashchange', checkAndNotifyNav);
+                    setInterval(checkAndNotifyNav, 1000);
+                }
+                checkAndNotifyNav();
             })();
         """.trimIndent()
 
@@ -499,6 +671,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        globalLayoutListener?.let {
+            binding.root.viewTreeObserver.removeOnGlobalLayoutListener(it)
+        }
         binding.webView.stopLoading()
         binding.webView.destroy()
         super.onDestroy()
