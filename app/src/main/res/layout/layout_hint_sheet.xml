@@ -284,7 +284,7 @@
 
         </LinearLayout>
 
-        <!-- ================= 2. CLUE SEARCH VIEW (AI OVERVIEW + DIRECT ANSWER) ================= -->
+        <!-- ================= 2. CLUE SEARCH VIEW (LIVE GOOGLE AI OVERVIEW) ================= -->
         <LinearLayout
             android:id="@+id/viewClue"
             android:layout_width="match_parent"
@@ -325,76 +325,22 @@
                 android:layout_marginTop="16dp"
                 android:visibility="gone" />
 
-            <!-- Single AI Overview Result Card -->
+            <!-- Live Google AI Overview Card Container -->
             <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardAiOverview"
+                android:id="@+id/cardClueAiOverviewContainer"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="370dp"
                 android:layout_marginTop="14dp"
                 android:visibility="gone"
-                app:cardCornerRadius="14dp"
+                app:cardCornerRadius="16dp"
                 app:cardElevation="3dp"
                 app:strokeWidth="1.5dp"
                 app:strokeColor="?attr/colorPrimary">
 
-                <LinearLayout
+                <WebView
+                    android:id="@+id/webViewClueAiOverview"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="✨ AI OVERVIEW"
-                            android:textSize="12sp"
-                            android:textStyle="bold"
-                            android:textColor="?attr/colorPrimary"
-                            android:letterSpacing="0.05" />
-
-                        <View
-                            android:layout_width="0dp"
-                            android:layout_height="1dp"
-                            android:layout_weight="1" />
-
-                        <TextView
-                            android:id="@+id/tvAiOverviewLetters"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="9 LETTERS"
-                            android:textSize="11sp"
-                            android:textStyle="bold"
-                            android:textColor="?android:attr/textColorSecondary" />
-
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/tvAiOverviewAnswer"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="ROTTERDAM"
-                        android:textSize="22sp"
-                        android:textStyle="bold"
-                        android:textColor="?android:attr/textColorPrimary" />
-
-                    <TextView
-                        android:id="@+id/tvAiOverviewExplanation"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:lineSpacingExtra="3dp"
-                        android:text="Plausible solution explanation and clue wordplay breakdown..."
-                        android:textSize="14sp"
-                        android:textColor="?android:attr/textColorPrimary" />
-
-                </LinearLayout>
+                    android:layout_height="match_parent" />
 
             </com.google.android.material.card.MaterialCardView>
 

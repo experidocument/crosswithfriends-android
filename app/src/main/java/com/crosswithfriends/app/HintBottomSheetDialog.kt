@@ -1,15 +1,20 @@
 package com.crosswithfriends.app
 
+import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -195,9 +200,67 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
     }
 
     // ==========================================
-    // 2. CROSSWORD CLUE SECTION (AI OVERVIEW)
+    // 2. CLUE SECTION (LIVE GOOGLE AI OVERVIEW)
     // ==========================================
+    @SuppressLint("SetJavaScriptEnabled")
     private fun setupClueSearch() {
+        val clueWebView = binding.webViewClueAiOverview
+        val settings = clueWebView.settings
+        settings.javaScriptEnabled = true
+        settings.domStorageEnabled = true
+        settings.useWideViewPort = true
+        settings.loadWithOverviewMode = true
+        settings.cacheMode = WebSettings.LOAD_DEFAULT
+        // Use clean mobile Chrome user agent so Google renders the modern AI Overview
+        settings.userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+
+        clueWebView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                binding.progressClue.visibility = View.VISIBLE
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                binding.progressClue.visibility = View.GONE
+                binding.cardClueAiOverviewContainer.visibility = View.VISIBLE
+                binding.btnOpenGoogleClue.visibility = View.VISIBLE
+
+                // Injected CSS to hide Google search input, logos, ads, and header clutter
+                val js = """
+                    (function() {
+                        var styleId = 'google-ai-overview-cleaner';
+                        var existing = document.getElementById(styleId);
+                        if (existing) existing.remove();
+
+                        var style = document.createElement('style');
+                        style.id = styleId;
+                        style.innerHTML = `
+                            /* Hide Google search input form, logo, and top navigation */
+                            header, #header, #searchform, form[role="search"], .RNNXgb, #sfcnt, #top_nav, footer, #foot, #fbar {
+                                display: none !important;
+                            }
+
+                            /* Clean margins and padding */
+                            html, body {
+                                padding: 6px 8px !important;
+                                margin: 0 !important;
+                                background: transparent !important;
+                                -webkit-tap-highlight-color: transparent !important;
+                            }
+
+                            /* Highlight the AI Overview / Answer Box */
+                            div[data-attrid="wa:/description"], div[class*="kp-blk"], .MjjYud, div.g {
+                                border-radius: 12px !important;
+                            }
+                        `;
+                        document.head.appendChild(style);
+                    })();
+                """.trimIndent()
+                view?.evaluateJavascript(js, null)
+            }
+        }
+
         binding.etClueInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                 performClueSearch()
@@ -218,37 +281,25 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
         }
 
         binding.progressClue.visibility = View.VISIBLE
-        binding.cardAiOverview.visibility = View.GONE
+        binding.cardClueAiOverviewContainer.visibility = View.GONE
         binding.btnOpenGoogleClue.visibility = View.GONE
 
-        lifecycleScope.launch {
-            val result = EncyclopediaService.getClueAiOverview(clue)
-            binding.progressClue.visibility = View.GONE
+        val searchUrl = "https://www.google.com/search?q=" + URLEncoder.encode("$clue crossword clue", "UTF-8")
+        binding.webViewClueAiOverview.loadUrl(searchUrl)
 
-            result.onSuccess { overview ->
-                binding.cardAiOverview.visibility = View.VISIBLE
-                binding.tvAiOverviewAnswer.text = overview.answer
-                binding.tvAiOverviewLetters.text = overview.lettersCount
-                binding.tvAiOverviewExplanation.text = overview.explanation
+        binding.btnOpenGoogleClue.setOnClickListener {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl)))
+        }
 
-                binding.btnOpenGoogleClue.visibility = View.VISIBLE
-                binding.btnOpenGoogleClue.setOnClickListener {
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(overview.sourceUrl)))
-                }
-
-                // Flash prompt for user to save via the Word section
-                view?.let { root ->
-                    Snackbar.make(
-                        root,
-                        "Use the Word section to search and save this term for later",
-                        Snackbar.LENGTH_LONG
-                    ).setAction("Go to Word") {
-                        binding.toggleTabs.check(R.id.btnTabWord)
-                    }.show()
-                }
-            }.onFailure {
-                Toast.makeText(requireContext(), "Could not retrieve AI Overview.", Toast.LENGTH_SHORT).show()
-            }
+        // Flash prompt for user to save via the Word section
+        view?.let { root ->
+            Snackbar.make(
+                root,
+                "Use the Word section to search and save this term for later",
+                Snackbar.LENGTH_LONG
+            ).setAction("Go to Word") {
+                binding.toggleTabs.check(R.id.btnTabWord)
+            }.show()
         }
     }
 
@@ -378,6 +429,7 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
     }
 
     override fun onDestroyView() {
+        binding.webViewClueAiOverview.stopLoading()
         super.onDestroyView()
         _binding = null
     }
