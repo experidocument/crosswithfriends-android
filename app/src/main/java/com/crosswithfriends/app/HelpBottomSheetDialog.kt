@@ -25,7 +25,7 @@ class HelpBottomSheetDialog : BottomSheetDialogFragment() {
 
     companion object {
         const val TAG = "HelpBottomSheetDialog"
-        const val WEBHOOK_GUIDE_URL = "https://github.com/experidocument/crosswithfriends/blob/main/WEBHOOK_SETUP_GUIDE.md"
+        const val WEBHOOK_GUIDE_URL = "https://github.com/experidocument/crosswithfriend-android/blob/main/WEBHOOK_SETUP_GUIDE.md"
         const val SCRIPT_CODE = """function doPost(e) {
   try {
     var doc = DocumentApp.getActiveDocument();
