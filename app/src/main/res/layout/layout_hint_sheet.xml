@@ -130,6 +130,27 @@
                     app:singleSelection="true">
 
                     <com.google.android.material.chip.Chip
+                        android:id="@+id/chipGeneral"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="💡 General" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipFilm"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🎬 Film &amp; TV" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipMusic"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🎵 Music" />
+
+                    <com.google.android.material.chip.Chip
                         android:id="@+id/chipGeo"
                         style="@style/Widget.Material3.Chip.Filter"
                         android:layout_width="wrap_content"
@@ -137,18 +158,32 @@
                         android:text="🌍 Geography" />
 
                     <com.google.android.material.chip.Chip
+                        android:id="@+id/chipSports"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="⚽ Sports" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipHistory"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🏛️ History" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipLiterature"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📜 Literature" />
+
+                    <com.google.android.material.chip.Chip
                         android:id="@+id/chipArts"
                         style="@style/Widget.Material3.Chip.Filter"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="🎨 Arts" />
-
-                    <com.google.android.material.chip.Chip
-                        android:id="@+id/chipVocab"
-                        style="@style/Widget.Material3.Chip.Filter"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="📖 Vocabulary" />
 
                     <com.google.android.material.chip.Chip
                         android:id="@+id/chipFood"
@@ -163,6 +198,13 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="🧪 Science" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipVocab"
+                        style="@style/Widget.Material3.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📖 Vocabulary" />
 
                 </com.google.android.material.chip.ChipGroup>
             </HorizontalScrollView>
@@ -409,6 +451,16 @@
                     android:text="☁️ Sync All"
                     android:textSize="11sp"
                     app:cornerRadius="8dp" />
+
+                <ImageButton
+                    android:id="@+id/btnAddCustomCategory"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="4dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Add Custom Category"
+                    android:src="@drawable/ic_add"
+                    app:tint="?attr/colorPrimary" />
 
                 <ImageButton
                     android:id="@+id/btnWebhookSettings"

@@ -73,16 +73,32 @@ class JournalManager(private val context: Context) {
         }
     }
 
+    fun getUnsyncedEntries(): List<JournalEntry> {
+        return getAllEntries().filter { !it.isSynced }
+    }
+
+    fun markEntriesAsSynced(entryIds: List<String>) {
+        val currentEntries = getAllEntries().toMutableList()
+        var modified = false
+        currentEntries.forEachIndexed { index, entry ->
+            if (entryIds.contains(entry.id) && !entry.isSynced) {
+                currentEntries[index] = entry.copy(isSynced = true)
+                modified = true
+            }
+        }
+        if (modified) {
+            persistEntries(currentEntries)
+        }
+    }
+
     /**
-     * Exports all saved entries categorized according to the Google Doc template structure.
+     * Formats entries categorized according to the Google Doc template structure.
+     * Does NOT prepend 'Crossword Learning Database' title, syncing only the journal items.
      */
-    fun exportFullJournalForGoogleDocs(): String {
-        val entries = getAllEntries()
-        if (entries.isEmpty()) return "Crossword Learning Database\n(No entries saved yet)"
+    fun formatEntriesForSync(entries: List<JournalEntry>): String {
+        if (entries.isEmpty()) return ""
 
         val sb = StringBuilder()
-        sb.append("Crossword Learning Database\n\n")
-
         val grouped = entries.groupBy { it.category }
         grouped.forEach { (category, categoryEntries) ->
             sb.append(category).append("\n")
@@ -91,7 +107,34 @@ class JournalManager(private val context: Context) {
             }
             sb.append("\n")
         }
-        return sb.toString()
+        return sb.toString().trimEnd() + "\n"
+    }
+
+    /**
+     * Exports all saved entries without the title heading.
+     */
+    fun exportFullJournalForGoogleDocs(): String {
+        val entries = getAllEntries()
+        if (entries.isEmpty()) return "(No entries saved yet)"
+        return formatEntriesForSync(entries)
+    }
+
+    /**
+     * Custom Categories Management
+     */
+    fun getCustomCategories(): List<String> {
+        val raw = prefs.getString("custom_categories_v2", "") ?: ""
+        if (raw.isBlank()) return emptyList()
+        return raw.split(";;;").filter { it.isNotBlank() }
+    }
+
+    fun addCustomCategory(category: String) {
+        val current = getCustomCategories().toMutableList()
+        val cleaned = category.trim()
+        if (cleaned.isNotBlank() && !current.contains(cleaned)) {
+            current.add(cleaned)
+            prefs.edit().putString("custom_categories_v2", current.joinToString(";;;")).apply()
+        }
     }
 
     /**

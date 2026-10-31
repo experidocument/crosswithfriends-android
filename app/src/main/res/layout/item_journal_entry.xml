@@ -33,6 +33,16 @@
                 android:textStyle="bold"
                 android:textColor="?attr/colorPrimary" />
 
+            <TextView
+                android:id="@+id/tvSyncBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:text="✓ Synced"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="#4CAF50" />
+
             <ImageButton
                 android:id="@+id/btnCopySnippet"
                 android:layout_width="36dp"

@@ -16,7 +16,8 @@ data class JournalEntry(
     val etymology: String = "",
     val example: String = "",
     val sourceUrl: String = "",
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val isSynced: Boolean = false
 ) {
     fun toJsonObject(): JSONObject {
         return JSONObject().apply {
@@ -29,6 +30,7 @@ data class JournalEntry(
             put("example", example)
             put("sourceUrl", sourceUrl)
             put("timestamp", timestamp)
+            put("isSynced", isSynced)
         }
     }
 
@@ -62,13 +64,14 @@ data class JournalEntry(
             return JournalEntry(
                 id = json.optString("id", UUID.randomUUID().toString()),
                 word = json.optString("word", ""),
-                category = json.optString("category", "💡 General Trivia"),
+                category = json.optString("category", "💡 General").replace("💡 General Trivia", "💡 General"),
                 clue = json.optString("clue", ""),
                 trivia = json.optString("trivia", ""),
                 etymology = json.optString("etymology", ""),
                 example = json.optString("example", ""),
                 sourceUrl = json.optString("sourceUrl", ""),
-                timestamp = json.optLong("timestamp", System.currentTimeMillis())
+                timestamp = json.optLong("timestamp", System.currentTimeMillis()),
+                isSynced = json.optBoolean("isSynced", false)
             )
         }
     }

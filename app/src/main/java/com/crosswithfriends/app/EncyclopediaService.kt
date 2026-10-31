@@ -270,29 +270,57 @@ object EncyclopediaService {
     private fun detectCategory(word: String, description: String, text: String): String {
         val combined = "$word $description $text".lowercase()
         return when {
+            combined.contains("film") || combined.contains("movie") || combined.contains("cinema") ||
+            combined.contains("actor") || combined.contains("actress") || combined.contains("director") ||
+            combined.contains("television") || combined.contains("tv series") || combined.contains("sitcom") ||
+            combined.contains("hollywood") || combined.contains("oscar") || combined.contains("emmy") ||
+            combined.contains("screenplay") || combined.contains("episode") -> "🎬 Film & TV"
+
+            combined.contains("music") || combined.contains("song") || combined.contains("album") ||
+            combined.contains("band") || combined.contains("singer") || combined.contains("composer") ||
+            combined.contains("musician") || combined.contains("symphony") || combined.contains("opera") ||
+            combined.contains("grammy") || combined.contains("orchestra") || combined.contains("guitar") -> "🎵 Music"
+
+            combined.contains("sport") || combined.contains("game") || combined.contains("football") ||
+            combined.contains("soccer") || combined.contains("baseball") || combined.contains("basketball") ||
+            combined.contains("tennis") || combined.contains("olympic") || combined.contains("athlete") ||
+            combined.contains("stadium") || combined.contains("tournament") || combined.contains("nba") ||
+            combined.contains("nfl") || combined.contains("chess") -> "⚽ Sports"
+
+            combined.contains("president") || combined.contains("prime minister") || combined.contains("king") ||
+            combined.contains("queen") || combined.contains("emperor") || combined.contains("dynasty") ||
+            combined.contains("empire") || combined.contains("battle") || combined.contains("treaty") ||
+            combined.contains("war") || combined.contains("reign") || combined.contains("parliament") -> "🏛️ History"
+
+            combined.contains("novel") || combined.contains("author") || combined.contains("poet") ||
+            combined.contains("poetry") || combined.contains("poem") || combined.contains("mythology") ||
+            combined.contains("myth") || combined.contains("folklore") || combined.contains("literature") ||
+            combined.contains("playwright") || combined.contains("fable") -> "📜 Literature"
+
             combined.contains("island") || combined.contains("city") || combined.contains("country") ||
             combined.contains("river") || combined.contains("mountain") || combined.contains("capital") ||
-            combined.contains("lake") || combined.contains("state") || combined.contains("region") -> "🌍 Geography & Places"
+            combined.contains("lake") || combined.contains("state in") || combined.contains("region") ||
+            combined.contains("ocean") || combined.contains("sea") || combined.contains("province") -> "🌍 Geography"
 
-            combined.contains("painter") || combined.contains("actor") || combined.contains("actress") ||
-            combined.contains("film") || combined.contains("director") || combined.contains("music") ||
-            combined.contains("artist") || combined.contains("novel") || combined.contains("author") ||
-            combined.contains("sculptor") || combined.contains("theatre") -> "🎨 Arts & Entertainment"
+            combined.contains("painter") || combined.contains("painting") || combined.contains("art") ||
+            combined.contains("museum") || combined.contains("sculptor") || combined.contains("theatre") -> "🎨 Arts"
 
             combined.contains("noodle") || combined.contains("dish") || combined.contains("food") ||
             combined.contains("cuisine") || combined.contains("cocktail") || combined.contains("drink") ||
             combined.contains("recipe") || combined.contains("wine") || combined.contains("soup") ||
-            combined.contains("julep") || combined.contains("bourbon") -> "🍜 Food & Drink"
+            combined.contains("julep") || combined.contains("bourbon") || combined.contains("baking") ||
+            combined.contains("dessert") -> "🍜 Food & Drink"
 
             combined.contains("chemistry") || combined.contains("compound") || combined.contains("physics") ||
             combined.contains("biology") || combined.contains("species") || combined.contains("organic") ||
-            combined.contains("anatomy") || combined.contains("element") || combined.contains("formula") -> "🧪 Science & Miscellaneous"
+            combined.contains("anatomy") || combined.contains("element") || combined.contains("formula") ||
+            combined.contains("animal") || combined.contains("plant") || combined.contains("planet") -> "🧪 Science"
 
             combined.contains("slang") || combined.contains("prefix") || combined.contains("suffix") ||
             combined.contains("idiom") || combined.contains("verb") || combined.contains("noun") ||
-            combined.contains("adjective") || combined.contains("phrase") -> "📖 Vocabulary & Wordplay"
+            combined.contains("adjective") || combined.contains("phrase") || combined.contains("synonym") -> "📖 Vocabulary"
 
-            else -> "💡 General Trivia"
+            else -> "💡 General"
         }
     }
 

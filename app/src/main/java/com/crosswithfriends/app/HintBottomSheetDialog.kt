@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -17,14 +18,17 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
+import com.crosswithfriends.app.databinding.DialogAddCategoryBinding
 import com.crosswithfriends.app.databinding.ItemJournalEntryBinding
 import com.crosswithfriends.app.databinding.LayoutHintSheetBinding
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.google.android.material.chip.Chip
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
@@ -51,9 +55,66 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
         journalManager = JournalManager(requireContext())
 
         setupTabs()
+        setupCategoryChips()
         setupWordSearch()
         setupClueSearch()
         setupJournalActions()
+    }
+
+    private fun setupCategoryChips() {
+        val customCats = journalManager.getCustomCategories()
+        for (cat in customCats) {
+            val existing = binding.chipGroupCategory.findViewWithTag<Chip>(cat)
+            if (existing == null) {
+                val chip = Chip(requireContext()).apply {
+                    text = cat
+                    tag = cat
+                    isCheckable = true
+                    isClickable = true
+                }
+                binding.chipGroupCategory.addView(chip)
+            }
+        }
+    }
+
+    private fun showAddCategoryDialog() {
+        val dialogBinding = DialogAddCategoryBinding.inflate(layoutInflater)
+        val presetEmojis = listOf("🎬", "🎵", "⚽", "🏛️", "📜", "🎨", "🍜", "🧪", "📖", "🎮", "🚗", "✈️", "🐾", "💼", "💎", "🎸", "🏆", "☕", "💡", "🧩", "📚")
+
+        presetEmojis.forEach { emoji ->
+            val tv = TextView(requireContext()).apply {
+                text = emoji
+                textSize = 24f
+                setPadding(16, 8, 16, 8)
+                isClickable = true
+                setBackgroundResource(android.R.drawable.list_selector_background)
+                setOnClickListener {
+                    dialogBinding.etEmojiInput.setText(emoji)
+                }
+            }
+            dialogBinding.containerEmojiPresets.addView(tv)
+        }
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("Add Custom Category")
+            .setView(dialogBinding.root)
+            .setPositiveButton("Add") { _, _ ->
+                val emoji = dialogBinding.etEmojiInput.text.toString().trim().ifBlank { "💡" }
+                val name = dialogBinding.etCategoryName.text?.toString()?.trim() ?: ""
+
+                if (name.isEmpty()) {
+                    Toast.makeText(requireContext(), "Please enter a category name (up to 10 characters)", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+
+                val trimmedName = if (name.length > 10) name.substring(0, 10) else name
+                val fullCategory = "$emoji $trimmedName"
+                journalManager.addCustomCategory(fullCategory)
+                setupCategoryChips()
+                Toast.makeText(requireContext(), "Added category: $fullCategory", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     override fun onStart() {
@@ -139,10 +200,11 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
                 trivia = data.trivia,
                 etymology = data.etymology,
                 example = data.example,
-                sourceUrl = data.sourceUrl
+                sourceUrl = data.sourceUrl,
+                isSynced = false
             )
-
-            syncTextToGoogleDoc(entry.toGoogleDocSnippet(), "Crossword: ${entry.word}")
+            journalManager.saveEntry(entry)
+            syncTextToGoogleDoc(entry.toGoogleDocSnippet(), "Crossword: ${entry.word}", listOf(entry.id))
         }
 
         binding.btnGoogleSearchWord.setOnClickListener {
@@ -172,7 +234,7 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
             }.onFailure {
                 currentWordResult = EncyclopediaResult(
                     word = query,
-                    category = "💡 General Trivia",
+                    category = "💡 General",
                     summary = "",
                     trivia = "No exact single-page article found for \"$query\". Tap 'Search on Google' below to view full solutions and web explanations.",
                     etymology = "",
@@ -204,12 +266,32 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
             binding.tvResultExample.visibility = View.GONE
         }
 
+        val cat = data.category
         when {
-            data.category.contains("Geography") -> binding.chipGroupCategory.check(R.id.chipGeo)
-            data.category.contains("Arts") -> binding.chipGroupCategory.check(R.id.chipArts)
-            data.category.contains("Vocabulary") -> binding.chipGroupCategory.check(R.id.chipVocab)
-            data.category.contains("Food") -> binding.chipGroupCategory.check(R.id.chipFood)
-            data.category.contains("Science") -> binding.chipGroupCategory.check(R.id.chipScience)
+            cat.contains("Film") -> binding.chipGroupCategory.check(R.id.chipFilm)
+            cat.contains("Music") -> binding.chipGroupCategory.check(R.id.chipMusic)
+            cat.contains("Geography") -> binding.chipGroupCategory.check(R.id.chipGeo)
+            cat.contains("Sports") -> binding.chipGroupCategory.check(R.id.chipSports)
+            cat.contains("History") -> binding.chipGroupCategory.check(R.id.chipHistory)
+            cat.contains("Literature") -> binding.chipGroupCategory.check(R.id.chipLiterature)
+            cat.contains("Arts") -> binding.chipGroupCategory.check(R.id.chipArts)
+            cat.contains("Food") -> binding.chipGroupCategory.check(R.id.chipFood)
+            cat.contains("Science") -> binding.chipGroupCategory.check(R.id.chipScience)
+            cat.contains("Vocabulary") -> binding.chipGroupCategory.check(R.id.chipVocab)
+            else -> {
+                var matched = false
+                for (i in 0 until binding.chipGroupCategory.childCount) {
+                    val child = binding.chipGroupCategory.getChildAt(i) as? Chip
+                    if (child != null && child.text.toString().equals(cat, ignoreCase = true)) {
+                        child.isChecked = true
+                        matched = true
+                        break
+                    }
+                }
+                if (!matched) {
+                    binding.chipGroupCategory.check(R.id.chipGeneral)
+                }
+            }
         }
     }
 
@@ -409,8 +491,22 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
     // ==========================================
     private fun setupJournalActions() {
         binding.btnExportAllToDrive.setOnClickListener {
-            val fullSnippet = journalManager.exportFullJournalForGoogleDocs()
-            syncTextToGoogleDoc(fullSnippet, "My Crossword Learning Database")
+            val unsynced = journalManager.getUnsyncedEntries()
+            val allEntries = journalManager.getAllEntries()
+            if (allEntries.isEmpty()) {
+                Toast.makeText(requireContext(), "Your journal is empty! Save some words first.", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (unsynced.isEmpty()) {
+                Toast.makeText(requireContext(), "All ${allEntries.size} entries are already synced to your Google Doc! ✅", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val snippet = journalManager.formatEntriesForSync(unsynced)
+            syncTextToGoogleDoc(snippet, "Crossword Entries (${unsynced.size} new)", unsynced.map { it.id })
+        }
+
+        binding.btnAddCustomCategory.setOnClickListener {
+            showAddCategoryDialog()
         }
 
         binding.btnWebhookSettings.setOnClickListener {
@@ -418,13 +514,17 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
         }
     }
 
-    private fun syncTextToGoogleDoc(content: String, title: String) {
+    private fun syncTextToGoogleDoc(content: String, title: String, entryIdsToMarkSynced: List<String> = emptyList()) {
         val webhookUrl = journalManager.getGoogleDocWebhookUrl()
         if (webhookUrl.isNotBlank()) {
             Toast.makeText(requireContext(), "Syncing directly to your Google Doc... ⏳", Toast.LENGTH_SHORT).show()
             lifecycleScope.launch {
                 val syncResult = journalManager.syncDirectToGoogleDoc(content, webhookUrl)
                 syncResult.onSuccess {
+                    if (entryIdsToMarkSynced.isNotEmpty()) {
+                        journalManager.markEntriesAsSynced(entryIdsToMarkSynced)
+                        loadSavedJournal()
+                    }
                     Toast.makeText(requireContext(), "Synced directly to Google Doc! 📄✅", Toast.LENGTH_LONG).show()
                 }.onFailure {
                     Toast.makeText(requireContext(), "Webhook failed. Opening Drive Share Sheet...", Toast.LENGTH_SHORT).show()
@@ -436,7 +536,13 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
                 .setTitle("Google Doc Direct Sync")
                 .setMessage("To append entries directly into your Google Doc, set up a simple Google Apps Script Webhook URL. Would you like to enter your Webhook URL now, or share via standard Google Drive?")
                 .setPositiveButton("Enter Webhook") { _, _ -> showWebhookSettingsDialog() }
-                .setNegativeButton("Use Share Sheet") { _, _ -> journalManager.shareToGoogleDriveOrDocs(content, title) }
+                .setNegativeButton("Use Share Sheet") { _, _ ->
+                    journalManager.shareToGoogleDriveOrDocs(content, title)
+                    if (entryIdsToMarkSynced.isNotEmpty()) {
+                        journalManager.markEntriesAsSynced(entryIdsToMarkSynced)
+                        loadSavedJournal()
+                    }
+                }
                 .show()
         }
     }
@@ -462,14 +568,14 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
     }
 
     private fun getSelectedCategory(defaultCat: String): String {
-        return when (binding.chipGroupCategory.checkedChipId) {
-            R.id.chipGeo -> "🌍 Geography & Places"
-            R.id.chipArts -> "🎨 Arts & Entertainment"
-            R.id.chipVocab -> "📖 Vocabulary & Wordplay"
-            R.id.chipFood -> "🍜 Food & Drink"
-            R.id.chipScience -> "🧪 Science & Miscellaneous"
-            else -> defaultCat
+        val checkedId = binding.chipGroupCategory.checkedChipId
+        if (checkedId != View.NO_ID) {
+            val chip = binding.chipGroupCategory.findViewById<Chip>(checkedId)
+            if (chip != null && chip.text.isNotBlank()) {
+                return chip.text.toString()
+            }
         }
+        return defaultCat.ifBlank { "💡 General" }
     }
 
     private fun loadSavedJournal() {
@@ -487,6 +593,14 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
                 val itemBinding = ItemJournalEntryBinding.inflate(inflater, binding.containerJournalEntries, false)
                 itemBinding.tvWord.text = entry.word.uppercase()
                 itemBinding.tvCategory.text = entry.category
+
+                if (entry.isSynced) {
+                    itemBinding.tvSyncBadge.text = "✓ Synced"
+                    itemBinding.tvSyncBadge.setTextColor(Color.parseColor("#4CAF50"))
+                } else {
+                    itemBinding.tvSyncBadge.text = "☁️ New"
+                    itemBinding.tvSyncBadge.setTextColor(Color.parseColor("#FF9800"))
+                }
 
                 if (entry.clue.isNotBlank()) {
                     itemBinding.tvClue.visibility = View.VISIBLE
