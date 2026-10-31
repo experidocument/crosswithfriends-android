@@ -1,5 +1,8 @@
 package com.crosswithfriends.app
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -7,6 +10,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
 import com.crosswithfriends.app.databinding.DialogHelpCarouselBinding
@@ -20,7 +25,18 @@ class HelpBottomSheetDialog : BottomSheetDialogFragment() {
 
     companion object {
         const val TAG = "HelpBottomSheetDialog"
-        const val WEBHOOK_GUIDE_URL = "https://github.com/experidocument/crosswithfriends-android/blob/main/WEBHOOK_SETUP_GUIDE.md"
+        const val WEBHOOK_GUIDE_URL = "https://github.com/experidocument/crosswithfriends/blob/main/WEBHOOK_SETUP_GUIDE.md"
+        const val SCRIPT_CODE = """function doPost(e) {
+  try {
+    var doc = DocumentApp.getActiveDocument();
+    var body = doc.getBody();
+    var data = JSON.parse(e.postData.contents);
+    body.appendParagraph(data.text);
+    return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
+  } catch (err) {
+    return ContentService.createTextOutput("Error: " + err.message).setMimeType(ContentService.MimeType.TEXT);
+  }
+}"""
     }
 
     private val cards = listOf(
@@ -79,7 +95,7 @@ class HelpBottomSheetDialog : BottomSheetDialogFragment() {
         binding.btnCloseHelp.setOnClickListener { dismiss() }
 
         val adapter = HelpAdapter(cards) { url ->
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            showNativeWebhookGuide(url)
         }
         binding.viewPagerHelp.adapter = adapter
 
@@ -106,6 +122,34 @@ class HelpBottomSheetDialog : BottomSheetDialogFragment() {
                 dismiss()
             }
         }
+    }
+
+    private fun showNativeWebhookGuide(onlineUrl: String) {
+        val guideMessage = """
+1. Open your Google Doc on computer or browser.
+2. In the top menu, click Extensions > Apps Script.
+3. Paste the 9-line script (tap 'Copy Code' below).
+4. Click Deploy > New deployment > Web app:
+   • Execute as: Me
+   • Who has access: Anyone
+5. Copy the generated Web app URL.
+6. In this app's Journal tab, tap the Doc Settings (📖) icon and paste your URL!
+        """.trimIndent()
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("📖 Google Doc Sync Setup")
+            .setMessage(guideMessage)
+            .setPositiveButton("📋 Copy Script Code") { _, _ ->
+                val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("Apps Script", SCRIPT_CODE)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(requireContext(), "Script copied to clipboard!", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("Open GitHub Guide") { _, _ ->
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(onlineUrl)))
+            }
+            .setNegativeButton("Close", null)
+            .show()
     }
 
     private fun updateIndicator(position: Int) {
