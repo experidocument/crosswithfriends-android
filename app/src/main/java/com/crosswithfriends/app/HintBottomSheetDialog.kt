@@ -9,6 +9,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
@@ -21,6 +22,8 @@ import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
 import com.crosswithfriends.app.databinding.ItemJournalEntryBinding
 import com.crosswithfriends.app.databinding.LayoutHintSheetBinding
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
@@ -51,6 +54,17 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
         setupWordSearch()
         setupClueSearch()
         setupJournalActions()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val dialog = dialog as? BottomSheetDialog
+        val bottomSheet = dialog?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+        if (bottomSheet != null) {
+            val behavior = BottomSheetBehavior.from(bottomSheet)
+            behavior.state = BottomSheetBehavior.STATE_EXPANDED
+            behavior.skipCollapsed = true
+        }
     }
 
     private fun setupTabs() {
@@ -202,7 +216,7 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
     // ==========================================
     // 2. CLUE SECTION (LIVE GOOGLE AI OVERVIEW)
     // ==========================================
-    @SuppressLint("SetJavaScriptEnabled")
+    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
     private fun setupClueSearch() {
         val clueWebView = binding.webViewClueAiOverview
         val settings = clueWebView.settings
@@ -211,8 +225,25 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
         settings.cacheMode = WebSettings.LOAD_DEFAULT
-        // Use clean mobile Chrome user agent so Google renders the modern AI Overview
+        // Mobile Chrome user agent to render modern Google AI Overview
         settings.userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+
+        // Enable full vertical scrolling inside WebView and prevent parent sheet from stealing touches
+        clueWebView.isVerticalScrollBarEnabled = true
+        clueWebView.isNestedScrollingEnabled = true
+        clueWebView.overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+
+        clueWebView.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                    v.parent?.requestDisallowInterceptTouchEvent(true)
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.parent?.requestDisallowInterceptTouchEvent(false)
+                }
+            }
+            false
+        }
 
         clueWebView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
@@ -226,7 +257,7 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
                 binding.cardClueAiOverviewContainer.visibility = View.VISIBLE
                 binding.btnOpenGoogleClue.visibility = View.VISIBLE
 
-                // Injected CSS to hide Google search input, logos, ads, and header clutter
+                // Injected CSS + JS to crop Google search input, tabs navigation, chips, and scroll directly to AI Overview
                 val js = """
                     (function() {
                         var styleId = 'google-ai-overview-cleaner';
@@ -236,25 +267,95 @@ class HintBottomSheetDialog : BottomSheetDialogFragment() {
                         var style = document.createElement('style');
                         style.id = styleId;
                         style.innerHTML = `
-                            /* Hide Google search input form, logo, and top navigation */
-                            header, #header, #searchform, form[role="search"], .RNNXgb, #sfcnt, #top_nav, footer, #foot, #fbar {
+                            /* Hide Google search input form, logo, headers, top tabs, and related query carousels */
+                            header, #header, #searchform, form[role="search"], .RNNXgb, #sfcnt, #top_nav, footer, #foot, #fbar,
+                            #hdtb, .hdtb-mdb, .hdtb-msb, .hdtb-mws, [role="tablist"], [role="navigation"], .crAc4b, .O1cTff, .appbar, .yg51vc, .MUxGbd, .e2BEnf,
+                            g-scrolling-carousel, [data-initq], .T1Cjbd, .f52Rpf, .AU8x2c, .y6Uybc, div[class*="related-question-pair"],
+                            div[data-st-cnt="mode_selector"], div[role="region"][aria-label*="Search"] {
                                 display: none !important;
                             }
 
-                            /* Clean margins and padding */
+                            /* Ensure smooth scrolling within the WebView */
                             html, body {
-                                padding: 6px 8px !important;
+                                padding: 2px 6px !important;
                                 margin: 0 !important;
                                 background: transparent !important;
+                                overflow-y: auto !important;
+                                -webkit-overflow-scrolling: touch !important;
                                 -webkit-tap-highlight-color: transparent !important;
                             }
 
-                            /* Highlight the AI Overview / Answer Box */
+                            #main, #cnt, #rso {
+                                overflow: visible !important;
+                            }
+
+                            /* Highlight the AI Overview card */
                             div[data-attrid="wa:/description"], div[class*="kp-blk"], .MjjYud, div.g {
                                 border-radius: 12px !important;
                             }
                         `;
                         document.head.appendChild(style);
+
+                        function cropAndPosition() {
+                            // 1. Hide tabs by keyword (AI Mode, Images, Videos, Shopping)
+                            var all = document.querySelectorAll('*');
+                            for (var i = 0; i < all.length; i++) {
+                                var el = all[i];
+                                var txt = (el.textContent || '').trim();
+                                if (el.children.length === 0 && (txt === 'AI Mode' || txt === 'Images' || txt === 'Videos' || txt === 'Shopping' || txt === 'News')) {
+                                    var tabContainer = el.closest('[role="tablist"]') || el.closest('[role="navigation"]') || el.closest('#top_nav') || el.parentElement;
+                                    if (tabContainer && tabContainer !== document.body && tabContainer !== document.documentElement) {
+                                        tabContainer.style.setProperty('display', 'none', 'important');
+                                    }
+                                }
+                            }
+
+                            // 2. Hide carousels / search suggestion chips
+                            var carousels = document.querySelectorAll('g-scrolling-carousel, [data-initq], .T1Cjbd, .f52Rpf, .AU8x2c, .y6Uybc');
+                            carousels.forEach(function(c) {
+                                c.style.setProperty('display', 'none', 'important');
+                                var p = c.parentElement;
+                                if (p && p.tagName !== 'BODY' && p.children.length <= 2) {
+                                    p.style.setProperty('display', 'none', 'important');
+                                }
+                            });
+
+                            // 3. Locate AI Overview block and hide any prior siblings in DOM
+                            for (var j = 0; j < all.length; j++) {
+                                var item = all[j];
+                                var itemText = (item.textContent || '').trim();
+                                if (item.children.length <= 2 && (itemText.startsWith('AI Overview') || itemText.includes('AI Overview'))) {
+                                    var card = item.closest('.MjjYud') || item.closest('div[data-attrid]') || item.closest('div.g') || item.closest('section') || item;
+                                    var prev = card.previousElementSibling;
+                                    while (prev) {
+                                        prev.style.setProperty('display', 'none', 'important');
+                                        prev = prev.previousElementSibling;
+                                    }
+                                    var parent = card.parentElement;
+                                    if (parent && parent.id !== 'rso' && parent.tagName !== 'BODY') {
+                                        var parentPrev = parent.previousElementSibling;
+                                        while (parentPrev) {
+                                            parentPrev.style.setProperty('display', 'none', 'important');
+                                            parentPrev = parentPrev.previousElementSibling;
+                                        }
+                                    }
+                                    card.scrollIntoView({ behavior: 'instant', block: 'start' });
+                                    break;
+                                }
+                            }
+                        }
+
+                        cropAndPosition();
+                        setTimeout(cropAndPosition, 250);
+                        setTimeout(cropAndPosition, 600);
+                        setTimeout(cropAndPosition, 1200);
+
+                        try {
+                            var observer = new MutationObserver(function() {
+                                cropAndPosition();
+                            });
+                            observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
+                        } catch(e) {}
                     })();
                 """.trimIndent()
                 view?.evaluateJavascript(js, null)

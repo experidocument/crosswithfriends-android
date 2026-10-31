@@ -284,7 +284,7 @@
 
         </LinearLayout>
 
-        <!-- ================= 2. CLUE SEARCH VIEW (LIVE GOOGLE AI OVERVIEW) ================= -->
+        <!-- ================= 2. CLUE SEARCH VIEW (LIVE GOOGLE AI OVERVIEW CROPPED & SCROLLABLE) ================= -->
         <LinearLayout
             android:id="@+id/viewClue"
             android:layout_width="match_parent"
@@ -325,11 +325,11 @@
                 android:layout_marginTop="16dp"
                 android:visibility="gone" />
 
-            <!-- Live Google AI Overview Card Container -->
+            <!-- Live Google AI Overview Card Container (Scrollable 440dp) -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardClueAiOverviewContainer"
                 android:layout_width="match_parent"
-                android:layout_height="370dp"
+                android:layout_height="440dp"
                 android:layout_marginTop="14dp"
                 android:visibility="gone"
                 app:cardCornerRadius="16dp"
@@ -340,7 +340,8 @@
                 <WebView
                     android:id="@+id/webViewClueAiOverview"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent" />
+                    android:layout_height="match_parent"
+                    android:scrollbars="vertical" />
 
             </com.google.android.material.card.MaterialCardView>
 
